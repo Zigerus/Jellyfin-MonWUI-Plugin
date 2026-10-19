@@ -801,7 +801,13 @@ namespace Jellyfin.Plugin.JMSFusion.Controllers
         {
             var merged = new SmartProfile();
 
-            foreach (var otherUser in (_users.Users ?? Array.Empty<User>())
+#if JELLYFIN_12
+            // Jellyfin 12 turned IUserManager.Users (property) into GetUsers() (method).
+            var allUsers = _users.GetUsers() ?? Array.Empty<User>();
+#else
+            var allUsers = _users.Users ?? Array.Empty<User>();
+#endif
+            foreach (var otherUser in allUsers
                 .Where(user => user is not null && user.Id != Guid.Empty && user.Id != currentUserId)
                 .OrderByDescending(user => user.LastActivityDate ?? DateTime.MinValue)
                 .ThenBy(user => user.Username ?? string.Empty, StringComparer.OrdinalIgnoreCase)
