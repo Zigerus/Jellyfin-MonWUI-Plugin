@@ -16,6 +16,11 @@ namespace Jellyfin.Plugin.JMSFusion.Controllers
         [HttpGet("{*path}")]
         public IActionResult GetAsset(string path)
         {
+            if (Core.TvClientGate.IsBlockedTvClient(Request))
+            {
+                return Content(string.Empty, "application/javascript; charset=utf-8");
+            }
+
             try
             {
                 path = (path ?? "").Replace('\\', '/').TrimStart('/');

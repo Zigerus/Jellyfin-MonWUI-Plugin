@@ -34,6 +34,15 @@ namespace Jellyfin.Plugin.JMSFusion.Controllers
                 return NotFound();
             }
 
+            if (Core.TvClientGate.IsBlockedTvClient(Request))
+            {
+                var gatedBody = string.Equals(name, "storage-preload", StringComparison.OrdinalIgnoreCase)
+                    ? Core.TvClientGate.TvFocusShimJs
+                    : string.Empty;
+                Response.Headers["Cache-Control"] = "no-store";
+                return Content(gatedBody, "application/javascript; charset=utf-8");
+            }
+
             try
             {
                 if (AssetVersioning.TryHandleConditionalGet(HttpContext, $"runtime:{name}"))
