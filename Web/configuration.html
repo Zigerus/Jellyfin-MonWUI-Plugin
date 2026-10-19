@@ -82,6 +82,21 @@
               </div>
             </div>
 
+            <div class="inputContainer inputContainer--toggle">
+              <label class="inputLabel inputLabel--checkbox" for="disableTvClients">
+                <input id="disableTvClients" type="checkbox">
+                <span id="disableTvClientsLabel">Disable MonWUI for TV web clients</span>
+              </label>
+              <div class="fieldDescription" id="disableTvClientsHint">
+                Enabled: clients whose browser User-Agent matches the TV pattern below get the stock Jellyfin web UI (MonWUI scripts are served empty). Other clients are unaffected.
+              </div>
+            </div>
+            <div class="inputContainer">
+              <label class="inputLabel" id="tvUaPatternLabel" for="tvUaPattern">TV User-Agent pattern (regex)</label>
+              <input id="tvUaPattern" type="text" class="emby-input" placeholder="Web0S|SmartTV|WebAppManager|Tizen">
+              <div class="fieldDescription" id="tvUaPatternHint">Matched case-insensitively against the request User-Agent. Default covers LG webOS and Samsung Tizen TV browsers.</div>
+            </div>
+
             <div class="inputContainer">
               <label class="inputLabel" id="scriptDirLabel" for="scriptDir">Script Directory</label>
               <input id="scriptDir" type="text" class="emby-input" placeholder="/home/gkhng/slider">

@@ -421,6 +421,10 @@
     view.querySelector("#playerSub").value = cfg.playerSubdir || "modules/player";
     const fg = view.querySelector("#forceGlobal");
     if (fg) fg.checked = !!cfg.forceGlobalUserSettings;
+    const tv = view.querySelector("#disableTvClients");
+    if (tv) tv.checked = !!cfg.disableForTvWebClients;
+    const tvUa = view.querySelector("#tvUaPattern");
+    if (tvUa) tvUa.value = cfg.tvClientUserAgentPattern || "Web0S|SmartTV|WebAppManager|Tizen";
     return cfg;
   }
 
@@ -438,7 +442,9 @@
     const body = {
       scriptDirectory: view.querySelector("#scriptDir").value.trim(),
       playerSubdir: view.querySelector("#playerSub").value.trim(),
-      forceGlobalUserSettings: !!view.querySelector("#forceGlobal")?.checked
+      forceGlobalUserSettings: !!view.querySelector("#forceGlobal")?.checked,
+      disableForTvWebClients: !!view.querySelector("#disableTvClients")?.checked,
+      tvClientUserAgentPattern: (view.querySelector("#tvUaPattern")?.value || "").trim()
     };
 
     await postConfiguration(body);
