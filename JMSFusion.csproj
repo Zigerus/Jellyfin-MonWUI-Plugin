@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <!-- Build target selector (same pattern as Zigerus/jellyfin-plugin-dtdd and JS Injector 4.0):
+           JellyfinTarget=jf12 -> Jellyfin 12.x,   net10.0 (default)
+           JellyfinTarget=jf10 -> Jellyfin 10.11.x, net9.0
+         One source, two artifacts. Select with `dotnet publish -p:JellyfinTarget=jf10`.
+         Each target restores its own assets; do not pass -\-no-restore when switching. -->
+    <JellyfinTarget Condition="'$(JellyfinTarget)' == ''">jf12</JellyfinTarget>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
@@ -18,6 +23,23 @@
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
 
+  <!-- Package versions sit on each target's ABI FLOOR (12.0.0 / 10.11.0), never the host's
+       patch version: a newer host satisfies a lower reference, the reverse does not load. -->
+  <PropertyGroup Condition="'$(JellyfinTarget)' == 'jf12'">
+    <TargetFramework>net10.0</TargetFramework>
+    <JellyfinVersion>12.0.0</JellyfinVersion>
+    <JellyfinTargetAbi>12.0.0.0</JellyfinTargetAbi>
+    <MsExtVersion>10.0.0</MsExtVersion>
+    <DefineConstants>$(DefineConstants);JELLYFIN_12</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(JellyfinTarget)' == 'jf10'">
+    <TargetFramework>net9.0</TargetFramework>
+    <JellyfinVersion>10.11.0</JellyfinVersion>
+    <JellyfinTargetAbi>10.11.0.0</JellyfinTargetAbi>
+    <MsExtVersion>9.0.10</MsExtVersion>
+  </PropertyGroup>
+
   <PropertyGroup>
     <PackageId>JMSFusion</PackageId>
     <Authors>G-Grbz</Authors>
@@ -29,11 +51,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.0" />
-    <PackageReference Include="Jellyfin.Model" Version="10.11.0" />
-    <PackageReference Include="Jellyfin.Common"    Version="10.11.0" />
-    <PackageReference Include="Jellyfin.Data"      Version="10.11.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.10" />
+    <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinVersion)" />
+    <PackageReference Include="Jellyfin.Model" Version="$(JellyfinVersion)" />
+    <PackageReference Include="Jellyfin.Common"    Version="$(JellyfinVersion)" />
+    <PackageReference Include="Jellyfin.Data"      Version="$(JellyfinVersion)" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(MsExtVersion)" />
     <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.0" />
   </ItemGroup>
 
@@ -60,7 +82,7 @@
   <Target Name="UpdateMetaJson"
           BeforeTargets="CopyFilesToOutputDirectory;ComputeFilesToPublish">
     <Message Text="Updating meta.json (timestamp &amp; version &amp; imagePath)..." Importance="high" />
-    <Exec Command="bash ./update_meta.sh &quot;$(Version)&quot;"
+    <Exec Command="bash ./update_meta.sh &quot;$(Version)&quot; &quot;$(JellyfinTargetAbi)&quot;"
           WorkingDirectory="$(MSBuildProjectDirectory)" />
   </Target>
 

@@ -9,14 +9,16 @@ fi
 
 TS=$(date -u +"%Y-%m-%dT%H:%M:%S.%7NZ")
 NEWVER="${1:-}"
+NEWABI="${2:-}"
 CLEAN="$(mktemp)"
 grep -vE '^\s*//' "$FILE" > "$CLEAN"
 
 if command -v jq >/dev/null 2>&1; then
   if [ -n "$NEWVER" ]; then
-    jq --arg ts "$TS" --arg ver "$NEWVER" \
+    jq --arg ts "$TS" --arg ver "$NEWVER" --arg abi "$NEWABI" \
       '.timestamp = $ts
        | .version = $ver
+       | (if $abi != "" then .targetAbi = $abi else . end)
        | .imagePathLinux   = ("/var/lib/jellyfin/plugins/JMSFusion_" + $ver + "/icon.png")
        | .imagePathWindows = ("%ProgramData%/Jellyfin/Server/plugins/JMSFusion_" + $ver + "/icon.png")' \
       "$CLEAN" > "${FILE}.tmp"
@@ -28,6 +30,9 @@ else
   echo "⚠️ jq yok; sed ile güncelliyorum."
   sed -E -i "s#\"timestamp\"\\s*:\\s*\"[^\"]*\"#\"timestamp\": \"$TS\"#g" "$FILE"
 
+  if [ -n "$NEWABI" ]; then
+    sed -E -i "s#\"targetAbi\"\\s*:\\s*\"[^\"]*\"#\"targetAbi\": \"$NEWABI\"#g" "$FILE" || true
+  fi
   if [ -n "$NEWVER" ]; then
     sed -E -i "s#\"version\"\\s*:\\s*\"[^\"]*\"#\"version\": \"$NEWVER\"#g" "$FILE" || true
     if grep -qE "\"imagePathLinux\"" "$FILE"; then
