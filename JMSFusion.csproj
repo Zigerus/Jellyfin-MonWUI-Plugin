@@ -16,6 +16,8 @@
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <LangVersion>latest</LangVersion>
     <PublishTrimmed>false</PublishTrimmed>
+    <!-- ABI floor (decisions/2026-08-16): build against the oldest Jellyfin the manifest's targetAbi admits. -->
+    <JellyfinPackageVersion Condition="'$(JellyfinPackageVersion)' == ''">12.0.0</JellyfinPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -29,10 +31,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="12.3.0" />
-    <PackageReference Include="Jellyfin.Model" Version="12.3.0" />
-    <PackageReference Include="Jellyfin.Common"    Version="12.3.0" />
-    <PackageReference Include="Jellyfin.Data"      Version="12.3.0" />
+    <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinPackageVersion)" />
+    <PackageReference Include="Jellyfin.Model" Version="$(JellyfinPackageVersion)" />
+    <PackageReference Include="Jellyfin.Common"    Version="$(JellyfinPackageVersion)" />
+    <PackageReference Include="Jellyfin.Data"      Version="$(JellyfinPackageVersion)" />
     <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.0" />
   </ItemGroup>
 

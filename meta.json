@@ -7,9 +7,9 @@
   "status": "Active",
   "autoUpdate": false,
   "targetAbi": "12.0.0.0",
-  "sourceUrl": "https://github.com/hebolysouza/ParticularFlix-JMSFusion",
+  "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin",
   "imagePathLinux": "/var/lib/jellyfin/plugins/JMSFusion_4.0.0.7/icon.png",
   "imagePathWindows": "%ProgramData%/Jellyfin/Server/plugins/JMSFusion_4.0.0.7/icon.png",
-  "timestamp": "2026-11-04T21:45:06.2083183Z",
+  "timestamp": "2026-11-04T22:41:12.5545770Z",
   "guid": "c0b4a5e0-2f6a-4e70-9c5f-1e7c2d0b7f12"
 }

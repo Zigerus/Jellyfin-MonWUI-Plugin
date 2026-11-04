@@ -1,0 +1,159 @@
+name: Release Plugin
+
+# Zigerus fork release pipeline (same shape as Zigerus/jellyfin-plugin-dtdd).
+# Push a 4-part tag (v4.0.0.71) or run it by hand with a version. It builds the
+# plugin, packs DLL + meta.json + icon.png, publishes a GitHub Release, prepends
+# the version to manifest.json and commits that back to main, so Jellyfin's
+# catalog (raw.githubusercontent .../main/manifest.json) offers it.
+#
+# Version scheme: <ParticularFlix base a.b.c.d with d*10 + our revision>.
+# 4.0.0.71 = base 4.0.0.7, our revision 1; base 4.0.0.8 would become 4.0.0.81.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (4-part, e.g., 4.0.0.71). Will be tagged as v<version>.'
+        required: true
+
+permissions:
+  contents: write  # create releases + commit manifest.json back to main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version '$VERSION' is not 4-part numeric (e.g., 4.0.0.71)"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+          # Built against the oldest Jellyfin packages the manifest admits
+          # (JellyfinPackageVersion in the csproj); keep these two in step.
+          echo "TARGET_ABI=12.0.0.0" >> "$GITHUB_ENV"
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Stamp version into the csproj
+        run: |
+          sed -i "s|<Version>.*</Version>|<Version>${VERSION}</Version>|" JMSFusion.csproj
+          grep -n '<Version>' JMSFusion.csproj
+
+      - name: Build
+        run: |
+          dotnet build JMSFusion.csproj -c Release --nologo
+          ls -la bin/Release/net10.0/Jellyfin.Plugin.JMSFusion.dll
+
+      - name: Extract patch notes from CHANGELOG.md
+        # The catalog shows these notes in Dashboard -> Plugins. Fail the release
+        # if the "## <version>" section is missing so nothing ships without notes.
+        run: |
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          import os, re
+          version = os.environ["VERSION"]
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          match = re.search(
+              rf"^##\s+v?{re.escape(version)}\b[^\n]*$(.*?)(?=^##\s|\Z)",
+              text, re.MULTILINE | re.DOTALL)
+          if not match or not match.group(1).strip():
+              raise SystemExit(
+                  f"::error::No '## {version}' section in CHANGELOG.md. "
+                  "Add the patch notes for this release before tagging.")
+          print("CHANGELOG_NOTES<<CHANGELOG_EOF")
+          print(match.group(1).strip())
+          print("CHANGELOG_EOF")
+          PY
+
+      - name: Package zip + meta.json
+        run: |
+          set -e
+          export TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S")
+          echo "TIMESTAMP=$TIMESTAMP" >> "$GITHUB_ENV"
+          mkdir -p staging
+          cp bin/Release/net10.0/Jellyfin.Plugin.JMSFusion.dll staging/
+          cp img/icon.png staging/
+          python3 - <<'PY' > staging/meta.json
+          import json, os
+          print(json.dumps({
+              "category": "General",
+              "changelog": os.environ["CHANGELOG_NOTES"],
+              "description": "Frontend enhancement plugin for Jellyfin Web (Zigerus fork of ParticularFlix JMSFusion).",
+              "guid": "c0b4a5e0-2f6a-4e70-9c5f-1e7c2d0b7f12",
+              "name": "JMSFusion",
+              "overview": "Cinematic home slider and UI modules for the Jellyfin web client.",
+              "owner": "Zigerus",
+              "targetAbi": os.environ["TARGET_ABI"],
+              "timestamp": os.environ["TIMESTAMP"],
+              "version": os.environ["VERSION"],
+          }, indent=2))
+          PY
+          ZIP="JMSFusion_${VERSION}_${TARGET_ABI%.0}.zip"
+          ( cd staging && zip -j "../${ZIP}" Jellyfin.Plugin.JMSFusion.dll meta.json icon.png )
+          CHECKSUM=$(md5sum "$ZIP" | awk '{print toupper($1)}')
+          echo "Built $ZIP ($(stat -c%s "$ZIP") bytes, md5=$CHECKSUM, targetAbi=$TARGET_ABI)"
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "CHECKSUM=$CHECKSUM" >> "$GITHUB_ENV"
+
+      - name: Update manifest.json
+        run: |
+          python3 - <<'PY'
+          import json, os
+          V = os.environ["VERSION"]
+          entry = {
+              "version": V,
+              "changelog": os.environ["CHANGELOG_NOTES"],
+              "targetAbi": os.environ["TARGET_ABI"],
+              "sourceUrl": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['TAG']}/{os.environ['ZIP']}",
+              "checksum": os.environ["CHECKSUM"],
+              "timestamp": os.environ["TIMESTAMP"],
+          }
+          with open("manifest.json") as f:
+              data = json.load(f)
+          plugin = data[0]
+          # Idempotent re-runs: drop an existing entry for this version, then prepend.
+          plugin["versions"] = [entry] + [v for v in plugin.get("versions", []) if v.get("version") != V]
+          with open("manifest.json", "w") as f:
+              json.dump(data, f, indent=2, ensure_ascii=False)
+              f.write("\n")
+          PY
+          cat manifest.json | head -30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          body: ${{ env.CHANGELOG_NOTES }}
+          files: ${{ env.ZIP }}
+          fail_on_unmatched_files: true
+
+      - name: Commit manifest.json + version stamp back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json JMSFusion.csproj
+          if git diff --cached --quiet; then
+            echo "No tracked file changes to commit"
+            exit 0
+          fi
+          git commit -m "release ${TAG}"
+          git push origin HEAD:main

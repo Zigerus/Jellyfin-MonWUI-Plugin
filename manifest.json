@@ -2,11 +2,11 @@
   {
     "guid": "c0b4a5e0-2f6a-4e70-9c5f-1e7c2d0b7f12",
     "name": "JMSFusion",
-    "description": "Frontend enhancement plugin for Jellyfin Web and web-wrapper mobile clients; native Android TV clients are not supported.",
+    "description": "Frontend enhancement plugin for Jellyfin Web and web-wrapper mobile clients (Zigerus fork of ParticularFlix JMSFusion, Jellyfin 12). Native Android TV clients are not supported.",
     "overview": "Custom script loader for the Jellyfin web UI.",
-    "owner": "G-Grbz",
+    "owner": "Zigerus",
     "category": "General",
-    "imageUrl": "https://raw.githubusercontent.com/hebolysouza/ParticularFlix-JMSFusion/main/img/icon.png",
+    "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": []
   }
 ]

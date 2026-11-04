@@ -5,6 +5,22 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.71 (Zigerus build, Jellyfin 12)
+
+First release of the Zigerus fork (github.com/Zigerus/Jellyfin-MonWUI-Plugin). Same code as ParticularFlix 4.0.0.7, plus the changes below. Same plugin GUID, so it upgrades any JMSFusion install in place, and your settings are kept.
+
+### New
+- **Turn MonWUI off for TV web browsers** (Plugins, then JMSFusion, then "Disable MonWUI for TV web clients"). TV browsers whose User-Agent matches the pattern get the stock Jellyfin web UI: the slider and modules are served empty, and a small focus helper keeps the remote working. The default pattern `Web0S|SmartTV|WebAppManager|Tizen` covers LG webOS and Samsung Tizen. The setting is **off by default**. Desktop, phone and native apps are not affected.
+
+### Build
+- Built against the Jellyfin 12.0.0 packages, so the `12.0.0.0` minimum this release declares is the real minimum (4.0.0.7 compiled against 12.3.0).
+- Releases are now built by GitHub Actions and published to this fork's own plugin repository: `https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/manifest.json`.
+
+### Known issues (found on Jellyfin 12.4.0, to be fixed next)
+- The page reloads once right after you log in.
+- The login page shows two harmless 401 errors in the browser console.
+- With a custom home section order, the console can show `getScrollSlider is not a function`.
+
 ## 4.0.0.7 (fork build, Jellyfin 12)
 
 Fixes for switching profiles, saving profile settings, the header logo and the custom folder. Same requirements as 4.0.0.6 (Jellyfin 12.x, net10.0); settings are kept.

@@ -36,6 +36,20 @@
 
 ---
 
+> [!IMPORTANT]
+> **Zigerus fork.** This repository is maintained by Zigerus on top of the
+> [ParticularFlix fork](https://github.com/hebolysouza/ParticularFlix-JMSFusion) (itself a fork of the archived
+> [Jellyfin-MonWUI-Plugin](https://github.com/G-grbz/Jellyfin-MonWUI-Plugin)). It adds an optional switch that serves the stock
+> Jellyfin UI to TV web browsers, builds against the oldest Jellyfin 12 it claims to support, and publishes its own plugin repository:
+>
+> ```
+> https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/manifest.json
+> ```
+>
+> Versions are the ParticularFlix base with our revision appended (4.0.0.71 = base 4.0.0.7, revision 1). The text below is
+> ParticularFlix's README, kept as-is. Its install steps point at their repository, so use the URL above for this fork.
+> Changes are listed in [CHANGELOG.md](CHANGELOG.md). License: GPL-3.0, with original credits kept.
+
 > [!NOTE]
 > **Maintained ParticularFlix fork.** This is an actively maintained fork of the original
 > [Jellyfin-MonWUI-Plugin](https://github.com/G-grbz/Jellyfin-MonWUI-Plugin), which has been archived by its author.
