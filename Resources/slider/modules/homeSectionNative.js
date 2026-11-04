@@ -450,18 +450,82 @@ export function keepManagedSectionsBelowNative(container) {
     (a.originalIndex - b.originalIndex)
   ));
 
+  const now = performance.now();
   let anchor = null;
+  for (const entry of entries) {
+    const section = entry.element;
+    const needsMove = anchor
+      ? section.previousElementSibling !== anchor
+      : container.firstElementChild !== section;
+    if (needsMove && !scrollButtonsSettled(section, now)) {
+      retryReorderSoon(container);
+      return;
+    }
+    anchor = section;
+  }
+
+  anchor = null;
   for (const entry of entries) {
     const section = entry.element;
     if (anchor) {
       if (section.previousElementSibling !== anchor) {
+        dropScrollButtonsBeforeMove(section, now);
         anchor.insertAdjacentElement("afterend", section);
       }
     } else if (container.firstElementChild !== section) {
+      dropScrollButtonsBeforeMove(section, now);
       container.insertBefore(section, container.firstElementChild);
     }
     anchor = section;
   }
+}
+
+// Zigerus fork: jellyfin-web's emby-scroller inserts a fresh <div is="emby-scrollbuttons"> before
+// itself (asynchronously) on every attach and never removes the old one on detach. Moving a
+// section re-attaches its scrollers, so a move left a duplicate arrow bar wired to the wrong
+// sibling, which threw "getScrollSlider is not a function". So a section only moves once its
+// bars have settled; its bars are removed first and the re-attach builds exactly one again.
+const SCROLL_BUTTONS_SETTLE_MS = 120;
+const SCROLL_BUTTONS_GRACE_MS = 700;
+
+function expectsScrollButtons(scroller) {
+  return document.documentElement.classList.contains("layout-desktop")
+    && scroller.getAttribute("data-horizontal") !== "false"
+    && scroller.getAttribute("data-scrollbuttons") !== "false";
+}
+
+function scrollButtonsSettled(section, now) {
+  try {
+    for (const scroller of section.querySelectorAll('[is="emby-scroller"]')) {
+      if (!expectsScrollButtons(scroller)) continue;
+      if (!scroller.__jmsAttachSeenAt) scroller.__jmsAttachSeenAt = now;
+      const bar = scroller.previousElementSibling;
+      if (bar?.getAttribute("is") === "emby-scrollbuttons") {
+        if (!bar.__jmsSeenAt) bar.__jmsSeenAt = now;
+        if (now - bar.__jmsSeenAt < SCROLL_BUTTONS_SETTLE_MS) return false;
+      } else if (now - scroller.__jmsAttachSeenAt < SCROLL_BUTTONS_GRACE_MS) {
+        return false;
+      }
+    }
+  } catch {}
+  return true;
+}
+
+function retryReorderSoon(container) {
+  if (container.__jmsReorderRetry) return;
+  container.__jmsReorderRetry = setTimeout(() => {
+    container.__jmsReorderRetry = 0;
+    try { keepManagedSectionsBelowNative(container); } catch {}
+  }, SCROLL_BUTTONS_SETTLE_MS);
+}
+
+function dropScrollButtonsBeforeMove(section, now) {
+  try {
+    section.querySelectorAll('[is="emby-scrollbuttons"]').forEach((bar) => bar.remove());
+    section.querySelectorAll('[is="emby-scroller"]').forEach((scroller) => {
+      scroller.__jmsAttachSeenAt = now;
+    });
+  } catch {}
 }
 
 export function bindManagedSectionsBelowNative(container) {

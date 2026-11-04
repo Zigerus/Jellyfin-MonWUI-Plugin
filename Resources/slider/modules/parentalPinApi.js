@@ -536,6 +536,12 @@ export async function deleteAccessProfile(userId) {
 }
 
 export async function fetchAccessStatus() {
+  // Zigerus fork: on the login screen there is no user yet and the server answers 401.
+  // Callers already treat a failure as "not logged in"; skip the request instead.
+  const { userId, token, authHeader } = await getAuthContext();
+  if (!userId || !(token || /Token="[^"]+"/i.test(authHeader))) {
+    throw new Error("Not signed in");
+  }
   return request("/access/status");
 }
 

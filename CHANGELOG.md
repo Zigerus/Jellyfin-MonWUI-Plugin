@@ -5,6 +5,15 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.72 (Zigerus build, Jellyfin 12)
+
+Fixes the three known issues listed for 4.0.0.71. Settings are kept.
+
+### Fixes
+- **No more page reload after logging in.** Jellyfin's login screen does not reload the page, but MonWUI saw the new user as a profile switch the first time it saved a setting and reloaded the freshly loaded home page. It now loads the signed-in user's own settings the moment the login completes, before the home page appears. Switching profiles and signing out still reload, as before.
+- **No more 401 errors on the login page.** The parental PIN status and studio hub visibility checks ran before anyone was signed in. They now wait for a signed-in user.
+- **No more "getScrollSlider is not a function" with a custom home section order.** Jellyfin adds a row of scroll arrows each time a row is attached to the page and never removes the old one. When MonWUI moved a row into your chosen order, the row ended up with a second set of arrows wired to the wrong element. MonWUI now waits until a row's arrows are ready, removes them before moving the row, and lets Jellyfin build exactly one set again.
+
 ## 4.0.0.71 (Zigerus build, Jellyfin 12)
 
 First release of the Zigerus fork (github.com/Zigerus/Jellyfin-MonWUI-Plugin). Same code as ParticularFlix 4.0.0.7, plus the changes below. Same plugin GUID, so it upgrades any JMSFusion install in place, and your settings are kept.

@@ -453,6 +453,11 @@ export async function fetchStudioHubVisibility({ force = false, profile } = {}) 
   }
 
   const headers = await getAuthHeaders();
+  // Zigerus fork: no token means the login screen; the server would answer 401. Return the
+  // empty default without caching it, so the real visibility loads once someone signs in.
+  if (!headers["X-Emby-Token"]) {
+    return { profile: normalizedProfile, hiddenNames: [], orderNames: [], updatedAtUtc: 0 };
+  }
   const res = await fetch(withServer(`/Plugins/JMSFusion/studio-hubs/visibility?profile=${encodeURIComponent(normalizedProfile)}&ts=${Date.now()}`), {
     method: "GET",
     headers,

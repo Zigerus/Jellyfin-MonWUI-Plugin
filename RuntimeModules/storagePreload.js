@@ -350,7 +350,75 @@ function buildSnapshotFromStorage() {
   return out;
 }
 
+// Zigerus fork: the page booted on the login screen (no user) and has since been signed in.
+// Jellyfin's login does not reload the page, so the first save after login used to look like a
+// profile switch and reloaded the freshly rendered home. Instead, adopt the user as soon as the
+// login writes jellyfin_credentials (before the home renders): fetch the user's snapshot and
+// apply it in place. If the slider already rendered with the anonymous settings and the user's
+// snapshot differs, return false and let userChangedSinceLoad() reload as before.
+let adoptPromise = null;
+
+function sliderAlreadyRendered() {
+  try {
+    return performance.getEntriesByName("jms:first-slide-ready").length > 0;
+  } catch {
+    return true;
+  }
+}
+
+function replaceSnapshotInPlace(payload) {
+  const snapshot = normalizeSnapshot(payload?.global || {});
+  suspendSync = true;
+  try {
+    if (Object.keys(snapshot).length) {
+      for (const key of managedKeys) {
+        if (!Object.prototype.hasOwnProperty.call(snapshot, key) && originalGetItem(key) !== null) {
+          originalRemoveItem(key);
+        }
+      }
+    }
+  } finally {
+    suspendSync = false;
+  }
+  forceGlobal = payload?.forceGlobal === true;
+  rev = Number(payload?.rev || 0);
+  state = snapshot;
+  serverSnapshotEmpty = Object.keys(snapshot).length === 0;
+  lastPersistedJson = serializeSnapshot(snapshot);
+  applySnapshotToStorage(snapshot);
+  bridge.bootstrapOverride = { forceGlobal, global: snapshot, rev, profile };
+}
+
+function adoptSignedInUser() {
+  if (loadedUserId !== "") return Promise.resolve(false);
+  const current = readAuthContext().userId;
+  if (!current) return Promise.resolve(false);
+  if (!adoptPromise) {
+    window.__JMS_USER_SETTINGS_SNAPSHOT__ = null;
+    window.__JMS_USER_SETTINGS_PROMISE__ = null;
+    adoptPromise = loadSharedUserSettingsSnapshot(profile)
+      .then(payload => {
+        if (loadedUserId !== "" || readAuthContext().userId !== current) return false;
+        if (serializeSnapshot(payload?.global || {}) !== lastPersistedJson) {
+          if (sliderAlreadyRendered()) return false;
+          replaceSnapshotInPlace(payload);
+        } else {
+          forceGlobal = payload?.forceGlobal === true;
+          rev = Number(payload?.rev || rev || 0);
+        }
+        loadedUserId = current;
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => { adoptPromise = null; });
+  }
+  return adoptPromise;
+}
+
 async function persistSnapshot(snapshot, options = {}) {
+  if (await adoptSignedInUser()) {
+    snapshot = buildSnapshotFromStorage();
+  }
   if (userChangedSinceLoad()) {
     return { ok: true, skipped: true, reason: "user-changed", profile, rev };
   }
@@ -477,6 +545,7 @@ function patchLocalStorage() {
     originalSetItem(normalizedKey, normalizedValue);
     if (previousValue === normalizedValue) return;
     storageVersion += 1;
+    if (normalizedKey === "jellyfin_credentials" && loadedUserId === "") void adoptSignedInUser();
     if (suspendSync) return;
     if (!shouldPersistKey(normalizedKey)) return;
     state[normalizedKey] = normalizedValue;
