@@ -2729,7 +2729,7 @@ export const languageLabels = {
       forceGlobalHint: "Enabled: all users receive the admin snapshot automatically. Disabled: users keep their own local settings.",
       scriptDirLabel: "Script directory",
       scriptDirPlaceholder: "/home/gkhng/slider",
-      scriptDirHint: "Leave empty to use embedded <code>/Resources/slider</code> assets.",
+      scriptDirHint: "Leave empty (recommended) to use the scripts built into the plugin, which update with it. A custom directory overrides them and does not update with the plugin.",
       playerSubLabel: "Player subdirectory",
       playerSubPlaceholder: "modules/player"
     },
@@ -2761,11 +2761,15 @@ export const languageLabels = {
       envPending: "(not computed yet)"
     },
     status: {
-      configured: "Configured",
-      directoryExists: "Directory exists",
+      scriptSource: "Script source",
+      scriptSourceBuiltIn: "Built into the plugin",
+      scriptSourceCustom: "Custom directory",
+      customDir: "Custom script directory",
+      customDirNotUsed: "Not used",
+      customDirFound: "Found",
+      customDirMissing: "Missing, using built-in scripts",
       mainJsExists: "Main JS exists",
       playerJsExists: "Player JS exists",
-      usingEmbedded: "Using embedded assets",
       playerPath: "Resolved player path",
       yes: "Yes",
       no: "No"

@@ -100,7 +100,7 @@
             <div class="inputContainer">
               <label class="inputLabel" id="scriptDirLabel" for="scriptDir">Script Directory</label>
               <input id="scriptDir" type="text" class="emby-input" placeholder="/home/gkhng/slider">
-              <div class="fieldDescription" id="scriptDirHint">Leave empty to use embedded <code>/Resources/slider</code> assets.</div>
+              <div class="fieldDescription" id="scriptDirHint">Leave empty (recommended) to use the scripts built into the plugin, which update with it. A custom directory overrides them and does not update with the plugin.</div>
             </div>
 
             <div class="inputContainer">
@@ -646,6 +646,11 @@
 #JMSFusionConfigPage .jms-badge.is-warn {
   color: var(--jms-gold);
   background: var(--jms-gold-soft);
+}
+
+#JMSFusionConfigPage .jms-badge.is-muted {
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 #JMSFusionConfigPage .jms-code-shell,

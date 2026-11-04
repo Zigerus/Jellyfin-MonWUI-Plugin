@@ -58,7 +58,7 @@
         forceGlobalHint: "Enabled: all users receive the admin snapshot automatically. Disabled: users keep their own local settings.",
         scriptDirLabel: "Script directory",
         scriptDirPlaceholder: "/home/gkhng/slider",
-        scriptDirHint: "Leave empty to use embedded <code>/Resources/slider</code> assets.",
+        scriptDirHint: "Leave empty (recommended) to use the scripts built into the plugin, which update with it. A custom directory overrides them and does not update with the plugin.",
         playerSubLabel: "Player subdirectory",
         playerSubPlaceholder: "modules/player"
       },
@@ -90,11 +90,15 @@
         envPending: "(not computed yet)"
       },
       status: {
-        configured: "Configured",
-        directoryExists: "Directory exists",
+        scriptSource: "Script source",
+        scriptSourceBuiltIn: "Built into the plugin",
+        scriptSourceCustom: "Custom directory",
+        customDir: "Custom script directory",
+        customDirNotUsed: "Not used",
+        customDirFound: "Found",
+        customDirMissing: "Missing, using built-in scripts",
         mainJsExists: "Main JS exists",
         playerJsExists: "Player JS exists",
-        usingEmbedded: "Using embedded assets",
         playerPath: "Resolved player path",
         yes: "Yes",
         no: "No"
@@ -371,7 +375,7 @@
     setText(view, "#forceGlobalHint", t("webConfig.fields.forceGlobalHint", "Enabled: all users receive the admin snapshot automatically. Disabled: users keep their own local settings."));
     setText(view, "#scriptDirLabel", t("webConfig.fields.scriptDirLabel", "Script directory"));
     setPlaceholder(view, "#scriptDir", t("webConfig.fields.scriptDirPlaceholder", "/home/gkhng/slider"));
-    setHtml(view, "#scriptDirHint", t("webConfig.fields.scriptDirHint", "Leave empty to use embedded <code>/Resources/slider</code> assets."));
+    setHtml(view, "#scriptDirHint", t("webConfig.fields.scriptDirHint", "Leave empty (recommended) to use the scripts built into the plugin, which update with it. A custom directory overrides them and does not update with the plugin."));
     setText(view, "#playerSubLabel", t("webConfig.fields.playerSubLabel", "Player subdirectory"));
     setPlaceholder(view, "#playerSub", t("webConfig.fields.playerSubPlaceholder", "modules/player"));
 
@@ -471,14 +475,28 @@
     const el = view.querySelector("#status");
     if (!el) return;
 
+    // Zigerus fork: an empty Script Directory is the normal setup. The plugin then serves the
+    // scripts built into it, which update with the plugin. The old rows ("Configured: No",
+    // "Directory exists: No", a yellow "Using embedded assets: Yes") read as a broken install.
+    let customDirBadge;
+    if (!s.configured) {
+      customDirBadge = statusBadge(t("webConfig.status.customDirNotUsed", "Not used"), "is-muted");
+    } else if (s.directoryExists) {
+      customDirBadge = statusBadge(t("webConfig.status.customDirFound", "Found"), "is-good");
+    } else {
+      customDirBadge = statusBadge(t("webConfig.status.customDirMissing", "Missing, using built-in scripts"), "is-bad");
+    }
+
     const rows = [
       {
-        label: t("webConfig.status.configured", "Configured"),
-        value: statusBadge(yesNo(s.configured), s.configured ? "is-good" : "is-bad")
+        label: t("webConfig.status.scriptSource", "Script source"),
+        value: s.usingEmbedded
+          ? statusBadge(t("webConfig.status.scriptSourceBuiltIn", "Built into the plugin"), "is-good")
+          : statusBadge(t("webConfig.status.scriptSourceCustom", "Custom directory"), "is-good")
       },
       {
-        label: t("webConfig.status.directoryExists", "Directory exists"),
-        value: statusBadge(yesNo(s.directoryExists), s.directoryExists ? "is-good" : "is-bad")
+        label: t("webConfig.status.customDir", "Custom script directory"),
+        value: customDirBadge
       },
       {
         label: t("webConfig.status.mainJsExists", "Main JS exists"),
@@ -487,10 +505,6 @@
       {
         label: t("webConfig.status.playerJsExists", "Player JS exists"),
         value: statusBadge(yesNo(s.playerJsExists), s.playerJsExists ? "is-good" : "is-bad")
-      },
-      {
-        label: t("webConfig.status.usingEmbedded", "Using embedded assets"),
-        value: statusBadge(yesNo(s.usingEmbedded), s.usingEmbedded ? "is-warn" : "is-good")
       },
       {
         label: t("webConfig.status.playerPath", "Resolved player path"),

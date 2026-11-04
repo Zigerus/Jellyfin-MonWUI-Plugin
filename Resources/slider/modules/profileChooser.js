@@ -58,7 +58,6 @@ function timeoutThrottle(fn, wait = 250) {
 const LEGACY_HIDE_STYLE_ID = "jfProfileChooserLegacyHideStyle";
 const NATIVE_HEADER_USER_SELECTOR = ".headerUserButtonRound, .headerUserButton, [aria-controls=\"app-user-menu\"]";
 const NATIVE_HEADER_USER_MARKER = "data-jfpc-hidden-native-user-btn";
-const MUI_USER_MENU_TRIGGER_SELECTOR = '[aria-controls="app-user-menu"]';
 
 function hideLegacyHeaderUserButtons(root = document) {
   const nodes = [];
@@ -741,10 +740,6 @@ async function fetchSessionsAuthed({ signal } = {}) {
   }
 }
 
-function goToMyPreferencesMenu() {
-  try { location.hash = "#/mypreferencesmenu"; } catch {}
-}
-
 function goToUserProfile(userId) {
   try {
     if (!userId) return;
@@ -1024,7 +1019,7 @@ function buildOverlayDom(L) {
   overlay.innerHTML = `
     <div class="jf-profile-shell" role="dialog" aria-modal="true" aria-label="${escapeHtml(L("profileChooserAriaLabel", "Profil seçimi"))}">
       <button class="jf-profile-close" type="button" aria-label="${escapeHtml(L("kapat", "Kapat"))}">✕</button>
-      <button class="jf-profile-settings" type="button" aria-label="${escapeHtml(L("ayarlar", "Ayarlar"))}">⚙</button>
+      <button class="jf-profile-settings" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHtml(L("ayarlar", "Ayarlar"))}">⚙</button>
 
       <div class="jf-profile-title">${escapeHtml(L("kimIzliyor", "Kim izliyor?"))}</div>
       <div class="jf-profile-subtitle">${escapeHtml(L("profilSecAlt", "Devam etmek için profil seç."))}</div>
@@ -1556,7 +1551,9 @@ export function initProfileChooser(options = {}) {
 
   function onKeydown(e) {
     if (!overlay) return;
-    if (e.key === "Escape") close();
+    if (e.key !== "Escape") return;
+    if (closeSettingsMenu()) return;
+    close();
   }
 
   function onOverlayClick(e) {
@@ -1564,42 +1561,79 @@ export function initProfileChooser(options = {}) {
     if (e.target === overlay) close();
   }
 
-  function getInstalledHeaderMode() {
-    const mountedMode = String(
-      document.getElementById(HEADER_BTN_ID)?.getAttribute("data-jfpc-header-mode") || ""
-    ).trim();
-    if (mountedMode) return mountedMode;
-    try {
-      return String(findHeaderMountTarget({ variant: "profile" })?.mode || "").trim() || "unknown";
-    } catch {
-      return "unknown";
-    }
-  }
-
-  function openMuiUserMenuFromHeader() {
-    if (getInstalledHeaderMode() !== "mui-user") return false;
-
-    let trigger = null;
-    try {
-      const mountTarget = findHeaderMountTarget({ variant: "profile" })?.element || null;
-      trigger =
-        mountTarget?.querySelector?.(MUI_USER_MENU_TRIGGER_SELECTOR) ||
-        document.querySelector(MUI_USER_MENU_TRIGGER_SELECTOR);
-    } catch {}
-
-    if (!trigger) return false;
-
-    close();
-    requestAnimationFrame(() => {
-      try { trigger.click(); } catch {}
-    });
+  // Zigerus fork: the chooser's gear used to close the chooser and open Jellyfin's own user menu,
+  // which drops down from the hidden native header button at the top-left of the home page. The
+  // same entries now open in a menu under the gear, inside the chooser. Picking one closes the
+  // chooser and navigates; Sign out reuses the chooser's own sign-out action.
+  function closeSettingsMenu() {
+    const menu = overlay?.querySelector?.(".jf-profile-settings-menu");
+    if (!menu) return false;
+    menu.remove();
+    overlay?.querySelector?.(".jf-profile-settings")?.setAttribute("aria-expanded", "false");
     return true;
   }
 
-  function goSettings() {
-    if (openMuiUserMenuFromHeader()) return;
-    goToMyPreferencesMenu();
-    close();
+  async function readCurrentUserForMenu() {
+    try {
+      const api = window.ApiClient;
+      const user = typeof api?.getCurrentUser === "function" ? await api.getCurrentUser() : null;
+      return {
+        userId: String(user?.Id || currentUserId || "").trim(),
+        isAdmin: user?.Policy?.IsAdministrator === true,
+      };
+    } catch {
+      return { userId: String(currentUserId || "").trim(), isAdmin: false };
+    }
+  }
+
+  async function goSettings() {
+    if (!overlay || closeSettingsMenu()) return;
+    const shell = overlay.querySelector(".jf-profile-shell");
+    const gear = overlay.querySelector(".jf-profile-settings");
+    if (!shell) return;
+
+    const { userId, isAdmin } = await readCurrentUserForMenu();
+    if (!overlay || overlay.querySelector(".jf-profile-settings-menu")) return;
+
+    const items = [
+      userId && { label: L("profil", "Profile"), href: `#/userprofile?userId=${encodeURIComponent(userId)}` },
+      { label: L("ayarlar", "Settings"), href: "#/mypreferencesmenu" },
+      isAdmin && { label: L("kontrolPaneli", "Dashboard"), href: "#/dashboard" },
+      isAdmin && { label: L("metadataYoneticisi", "Metadata Manager"), href: "#/metadata" },
+      { label: L("hizliBaglanti", "Quick Connect"), href: "#/quickconnect" },
+      { label: L("cikis", "Sign out"), action: "signout" },
+    ].filter(Boolean);
+
+    const menu = document.createElement("div");
+    menu.className = "jf-profile-settings-menu";
+    menu.setAttribute("role", "menu");
+    menu.innerHTML = items.map((item) => item.action
+      ? `<button type="button" role="menuitem" class="jf-profile-settings-item danger" data-action="${escapeHtml(item.action)}">${escapeHtml(item.label)}</button>`
+      : `<button type="button" role="menuitem" class="jf-profile-settings-item" data-href="${escapeHtml(item.href)}">${escapeHtml(item.label)}</button>`
+    ).join("");
+
+    menu.addEventListener("click", (e) => {
+      const item = e.target?.closest?.(".jf-profile-settings-item[data-href]");
+      if (!item) return;
+      try { e.preventDefault(); e.stopPropagation(); } catch {}
+      const href = item.getAttribute("data-href");
+      close();
+      try { location.hash = href; } catch {}
+    });
+
+    shell.addEventListener("click", function dismiss(e) {
+      if (!overlay?.querySelector?.(".jf-profile-settings-menu")) {
+        shell.removeEventListener("click", dismiss);
+        return;
+      }
+      if (e.target?.closest?.(".jf-profile-settings-menu, .jf-profile-settings")) return;
+      closeSettingsMenu();
+      shell.removeEventListener("click", dismiss);
+    });
+
+    shell.appendChild(menu);
+    gear?.setAttribute("aria-expanded", "true");
+    try { menu.querySelector(".jf-profile-settings-item")?.focus({ preventScroll: true }); } catch {}
   }
 
   async function refreshUsers() {

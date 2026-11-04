@@ -5,6 +5,13 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.74 (Zigerus build, Jellyfin 12)
+
+### Fixes
+- **The hero slider and custom rows no longer disappear when you click the server logo.** The logo links to `#/`, which Jellyfin immediately turns back into `#/home` while building a brand-new home page. MonWUI saw the same address as before and did nothing, so the slider and its rows stayed with the discarded page, and "My Media" moved up under the header. MonWUI now notices when the home page itself is replaced, and rebuilds the slider and rows in your saved order.
+- **The settings button on "Who's watching" opens its menu right there.** It used to close the chooser and open Jellyfin's user menu at the top-left of the home page. The same entries (Profile, Settings, Dashboard and Metadata Manager for admins, Quick Connect, Sign out) now open under the gear, inside the chooser. Escape, clicking elsewhere, or the gear again closes just the menu.
+- **The Runtime Status on the plugin page no longer looks like an error.** An empty Script Directory is the normal setup: the plugin uses its built-in scripts, which update with it. The card now shows "Script source: Built into the plugin" and "Custom script directory: Not used", instead of "Configured: No", "Directory exists: No" and a yellow "Using embedded assets: Yes". The Script Directory hint now says to leave it empty.
+
 ## 4.0.0.73 (Zigerus build, Jellyfin 12)
 
 ### Fixes

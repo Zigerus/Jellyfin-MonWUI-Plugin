@@ -6061,21 +6061,31 @@ function setupNavigationObserver() {
 
   let previousUrl = window.location.href;
   let isOnHomePage = isHomeVisible() || isHomeRouteActive();
+  // Zigerus fork: the header logo links to "#/", which Jellyfin pushes and then replaces with
+  // "#/home" within a few ms. The URL ends where it started, so nothing looked changed, but
+  // Jellyfin had rendered a brand-new #indexPage and the slider left with the old one. Track the
+  // home page element itself and treat a replaced one like entering home.
+  let lastHomePageEl = getVisibleHomePageEl();
   let scheduledTimer = 0;
   let disposed = false;
 
   const checkPageChange = async () => {
     const currentUrl = window.location.href;
     const nowOnHomePage = isHomeVisible() || isHomeRouteActive();
+    const homePageEl = nowOnHomePage ? getVisibleHomePageEl() : null;
+    const homePageReplaced = isOnHomePage && nowOnHomePage && !!homePageEl && !!lastHomePageEl
+      && homePageEl !== lastHomePageEl;
+    if (homePageEl) lastHomePageEl = homePageEl;
 
-    if (currentUrl !== previousUrl || nowOnHomePage !== isOnHomePage) {
+    if (currentUrl !== previousUrl || nowOnHomePage !== isOnHomePage || homePageReplaced) {
       homeSectionLog("navigation:page-change", {
         fromUrl: previousUrl,
         toUrl: currentUrl,
         wasOnHomePage: isOnHomePage,
         nowOnHomePage,
+        homePageReplaced,
       });
-      const stayedOnHome = isOnHomePage && nowOnHomePage && currentUrl !== previousUrl;
+      const stayedOnHome = isOnHomePage && nowOnHomePage && currentUrl !== previousUrl && !homePageReplaced;
       previousUrl = currentUrl;
       isOnHomePage = nowOnHomePage;
 
@@ -6086,7 +6096,11 @@ function setupNavigationObserver() {
         scheduleHomeHealthWatchdog("url-change-within-home");
       } else if (isOnHomePage) {
         window.__initOnHomeOnce = false;
-        fullSliderReset({ reason: "navigation:home-enter" });
+        // A replaced home page took MonWUI's rows with it, so they must be rebuilt, not preserved.
+        fullSliderReset({
+          reason: homePageReplaced ? "navigation:home-replaced" : "navigation:home-enter",
+          preserveHomeSections: !homePageReplaced,
+        });
         pinHomeScrollToTop();
         if (getMainConfig().enableNotifications === false) {
           document.getElementById('jfNotifBtn')?.remove();
