@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.73",
+        "changelog": "### Fixes\n- **The update check now watches this fork.** MonWUI's built-in update notice, its \"update available\" links and the GitHub link on the settings page pointed at the ParticularFlix repository, so the plugin could suggest their releases, which do not include this fork's changes. They now point at github.com/Zigerus/Jellyfin-MonWUI-Plugin. The link to the original G-grbz project is kept.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.73/JMSFusion_4.0.0.73_12.0.0.zip",
+        "checksum": "760AC78EFBD469088191C2CC4520E7C7",
+        "timestamp": "2026-11-04T23:10:51"
+      },
+      {
         "version": "4.0.0.72",
         "changelog": "Fixes the three known issues listed for 4.0.0.71. Settings are kept.\n\n### Fixes\n- **No more page reload after logging in.** Jellyfin's login screen does not reload the page, but MonWUI saw the new user as a profile switch the first time it saved a setting and reloaded the freshly loaded home page. It now loads the signed-in user's own settings the moment the login completes, before the home page appears. Switching profiles and signing out still reload, as before.\n- **No more 401 errors on the login page.** The parental PIN status and studio hub visibility checks ran before anyone was signed in. They now wait for a signed-in user.\n- **No more \"getScrollSlider is not a function\" with a custom home section order.** Jellyfin adds a row of scroll arrows each time a row is attached to the page and never removes the old one. When MonWUI moved a row into your chosen order, the row ended up with a second set of arrows wired to the wrong element. MonWUI now waits until a row's arrows are ready, removes them before moving the row, and lets Jellyfin build exactly one set again.",
         "targetAbi": "12.0.0.0",
