@@ -34,6 +34,12 @@ namespace Jellyfin.Plugin.JMSFusion
         [JsonPropertyName("allowScriptExecution")]
         public bool AllowScriptExecution { get; set; } = true;
 
+        [JsonPropertyName("disableForTvWebClients")]
+        public bool DisableForTvWebClients { get; set; } = false;
+
+        [JsonPropertyName("tvClientUserAgentPattern")]
+        public string TvClientUserAgentPattern { get; set; } = "Web0S|SmartTV|WebAppManager|Tizen";
+
         [JsonPropertyName("playerSubdir")]
         public string PlayerSubdir { get; set; } = "modules/player";
 
