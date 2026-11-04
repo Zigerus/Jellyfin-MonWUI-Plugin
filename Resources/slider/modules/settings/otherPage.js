@@ -481,10 +481,10 @@ export function createAboutPanel(labels) {
   supportInfo.style.marginBottom = '10px';
 
   const githubLink = document.createElement('a');
-  githubLink.href = 'https://github.com/hebolysouza/ParticularFlix-JMSFusion';
+  githubLink.href = 'https://github.com/Zigerus/Jellyfin-MonWUI-Plugin';
   githubLink.target = '_blank';
   githubLink.rel = 'noopener';
-  githubLink.textContent = 'GitHub (fork): https://github.com/hebolysouza/ParticularFlix-JMSFusion';
+  githubLink.textContent = 'GitHub (fork): https://github.com/Zigerus/Jellyfin-MonWUI-Plugin';
   githubLink.style.display = 'block';
   githubLink.style.marginBottom = '10px';
   githubLink.style.color = '#00a8ff';
@@ -552,7 +552,7 @@ export function createAboutPanel(labels) {
     resultSpan.textContent = '';
 
     try {
-      const { version: latest, html_url } = await fetchLatestGitHubVersion("hebolysouza", "ParticularFlix-JMSFusion");
+      const { version: latest, html_url } = await fetchLatestGitHubVersion("Zigerus", "Jellyfin-MonWUI-Plugin");
       if (!latest) {
         statusP.textContent = labels.updateUnknown || 'Son sürüm bilgisi alınamadı.';
       } else {

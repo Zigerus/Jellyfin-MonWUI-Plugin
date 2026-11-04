@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.73 (Zigerus build, Jellyfin 12)
+
+### Fixes
+- **The update check now watches this fork.** MonWUI's built-in update notice, its "update available" links and the GitHub link on the settings page pointed at the ParticularFlix repository, so the plugin could suggest their releases, which do not include this fork's changes. They now point at github.com/Zigerus/Jellyfin-MonWUI-Plugin. The link to the original G-grbz project is kept.
+
 ## 4.0.0.72 (Zigerus build, Jellyfin 12)
 
 Fixes the three known issues listed for 4.0.0.71. Settings are kept.
