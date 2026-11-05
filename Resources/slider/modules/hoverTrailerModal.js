@@ -2434,21 +2434,26 @@ function installYTPlayer(iframe) {
               const unmuteNow = () => applyPreviewTrailerAudioToYouTubePlayer(player, { config: getConfig(), soundOn: true });
               unmuteNow();
               try { player.playVideo?.(); } catch {}
-              // Fork Zigerus (4.0.0.81): verify. Without user activation the browser keeps the player muted or pauses
-              // it on unmute; then play muted and unmute on the first click or key (armFirstInteraction).
-              setTimeout(() => {
+              // Fork Zigerus (4.0.0.81/.82): verify. Without user activation the browser keeps the player muted or pauses
+              // it on unmute; then play muted and unmute on the first click or key (armFirstInteraction). A player that
+              // is merely slow (unstarted / cued / buffering) gets more time: checks at 0.7, 2 and 3.5 s.
+              const verify = (attempt) => {
                 try {
+                  if (_ytPlayers.get(iframe) !== player) return;
                   const state = typeof player.getPlayerState === 'function' ? player.getPlayerState() : -2;
                   const muted = typeof player.isMuted === 'function' ? player.isMuted() : true;
                   const playing = state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING;
                   if (!muted && playing) { setIcon(false); return; }
+                  const notYet = state === YT.PlayerState.UNSTARTED || state === YT.PlayerState.CUED || state === YT.PlayerState.BUFFERING;
+                  if (notYet && attempt < 2) { setTimeout(() => verify(attempt + 1), attempt === 0 ? 1300 : 1500); return; }
                   if (!playing) { try { player.mute?.(); player.playVideo?.(); } catch {} }
                   setIcon(true);
                   armFirstInteraction(iframe, () => {
                     try { unmuteNow(); player.playVideo?.(); setIcon(false); } catch {}
                   });
                 } catch {}
-              }, 700);
+              };
+              setTimeout(() => verify(0), 700);
             } else {
               ev.target.mute?.();
               if (btn) btn.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';

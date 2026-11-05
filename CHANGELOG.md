@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.82 (Zigerus build, Jellyfin 12)
+
+### Fixes
+- **A slow-starting YouTube preview is no longer muted by mistake.** 4.0.0.81's sound check gave the player 0.7 s after it reported ready before treating it as blocked by the browser and muting it until the next click; a normal start took up to 0.6 s on the bench, so a slightly slow one would have lost its sound. The check now waits up to 3.5 s while the player is still starting, and only acts when it is paused or still muted after that.
+
 ## 4.0.0.81 (Zigerus build, Jellyfin 12)
 
 ### Fixes
