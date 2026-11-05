@@ -438,30 +438,34 @@ export async function updateModalContent(item, videoUrl) {
       config: cfg,
       soundOn: (isMobileAppEnv() || !isTouchRuntime()) && !!modalState._soundOn
     });
+    // Fork Zigerus (4.0.0.81): without user activation the embed starts muted; installYTPlayer unmutes it when allowed
+    const startWithSound = !audioState.muted && hasUserActivation();
     iframe.src = ensureYTParams(trailerUrl, {
       autoplay: true,
-      muteInitial: audioState.muted,
+      muteInitial: !startWithSound,
       enableJsApi: CAN_USE_YT_API
     });
     iframe.__wrapper && (iframe.__wrapper.style.display = 'block');
     iframe.style.display = 'block';
     showYTFirstTouchShield(iframe, 380);
     sizeYTToFrame(iframe);
-    setTimeout(() => postPreviewTrailerAudioToYouTubeIframe(iframe, {
-      config: cfg,
-      soundOn: (isMobileAppEnv() || !isTouchRuntime()) && !!modalState._soundOn
-    }), 200);
-    setTimeout(() => postPreviewTrailerAudioToYouTubeIframe(iframe, {
-      config: cfg,
-      soundOn: (isMobileAppEnv() || !isTouchRuntime()) && !!modalState._soundOn
-    }), 1200);
+    if (startWithSound) {
+      setTimeout(() => postPreviewTrailerAudioToYouTubeIframe(iframe, {
+        config: cfg,
+        soundOn: (isMobileAppEnv() || !isTouchRuntime()) && !!modalState._soundOn
+      }), 200);
+      setTimeout(() => postPreviewTrailerAudioToYouTubeIframe(iframe, {
+        config: cfg,
+        soundOn: (isMobileAppEnv() || !isTouchRuntime()) && !!modalState._soundOn
+      }), 1200);
+    }
     if (CAN_USE_YT_API) ensureYTAPI().then(() => installYTPlayer(iframe));
     if (labelText) addTrailerTip(modal, labelText);
     const btn = modal?.querySelector?.('.preview-volume-button');
     if (btn) {
-      btn.innerHTML = audioState.muted
-        ? '<i class="fa-solid fa-volume-xmark"></i>'
-        : '<i class="fa-solid fa-volume-high"></i>';
+      btn.innerHTML = startWithSound
+        ? '<i class="fa-solid fa-volume-high"></i>'
+        : '<i class="fa-solid fa-volume-xmark"></i>';
     }
   };
 
@@ -654,6 +658,9 @@ export function closeVideoModal() {
     if (m) {
       clearTransientOverlays(m);
       m.style.display = 'none';
+      // Fork Zigerus (4.0.0.81): a theme rule can force display on the preview (Lumen §9 did); the closed preview then
+      // sat invisibly over its card and swallowed the pointer, so that card could not be hovered or clicked again
+      m.style.pointerEvents = 'none';
       m.classList.remove('video-preview-modal--hidden');
       try { clearWillChange(m, true); } catch {}
     }
@@ -681,6 +688,7 @@ export function animatedShow(modal) {
   if (!modal) return;
 
   modal.style.display = 'flex';
+  modal.style.pointerEvents = '';
   modal.style.transition = 'none';
   modal.classList.add('video-preview-modal--hidden');
   modal.classList.remove('video-preview-modal--visible');
@@ -1108,7 +1116,7 @@ export function createVideoModal({ showButtons = true, context = 'monwui-dot' } 
     const serverStart = /#jms-server-start$/.test(String(url));
     video.addEventListener('loadedmetadata', () => {
       if (!serverStart) video.currentTime = 10 * 60;
-      Promise.resolve(video.play()).catch(e => { if (e.name !== 'AbortError') console.warn('Video oynatma hatası:', e); });
+      playWithActivationFallback(video, modal);
     }, { once: true });
   };
 
@@ -2150,6 +2158,47 @@ function ensureYTParams(url, { autoplay = true, muteInitial = true, enableJsApi 
   }
 }
 
+// Fork Zigerus (4.0.0.81): browsers only allow autoplay WITH sound once the user has clicked or typed on the page
+// (Chrome: sticky user activation). A hover on a freshly loaded page has none; a YouTube embed asked to autoplay
+// unmuted then only shows its play button, and a <video> refuses play(). Such a preview starts muted and is unmuted
+// the moment it is allowed: right away when the player accepts it, otherwise on the first click or key anywhere.
+function hasUserActivation() {
+  try { return navigator.userActivation ? !!navigator.userActivation.hasBeenActive : true; } catch { return true; }
+}
+function armFirstInteraction(el, fn) {
+  disarmFirstInteraction(el);
+  const handler = (e) => {
+    try { if (e?.target?.closest?.('.preview-volume-wrap')) return; } catch {}   // the speaker button handles itself
+    cleanup();
+    try { fn(); } catch {}
+  };
+  const cleanup = () => {
+    ['pointerdown', 'keydown'].forEach(t => window.removeEventListener(t, handler, true));
+    if (el) el.__jmsFirstInteraction = null;
+  };
+  ['pointerdown', 'keydown'].forEach(t => window.addEventListener(t, handler, true));
+  if (el) el.__jmsFirstInteraction = cleanup;
+}
+function disarmFirstInteraction(el) { try { el?.__jmsFirstInteraction?.(); } catch {} }
+function playWithActivationFallback(video, modal = modalState.videoModal) {
+  return Promise.resolve(video.play()).catch((e) => {
+    if (e?.name !== 'NotAllowedError' || video.muted) {
+      if (e?.name !== 'AbortError') console.warn('Video oynatma hatası:', e);
+      return;
+    }
+    video.muted = true;
+    Promise.resolve(video.play()).catch(() => {});
+    const btn = modal?.querySelector?.('.preview-volume-button');
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
+    armFirstInteraction(video, () => {
+      if (!modalState._soundOn || !video.isConnected) return;
+      video.muted = false;
+      video.volume = getPreviewTrailerAudioState({ config: getConfig(), soundOn: true, ignoreStartMuted: true }).volume;
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+    });
+  });
+}
+
 function now() { return Date.now(); }
 
 function cacheGet(id) {
@@ -2317,6 +2366,7 @@ function getOrCreateTrailerIframe(modal = modalState.videoModal) {
 
 function destroyYTPlayerForIframe(iframe) {
   if (!iframe) return;
+  disarmFirstInteraction(iframe);
   const p = _ytPlayers.get(iframe);
   if (p) {
     try { p.pauseVideo?.(); } catch {}
@@ -2359,31 +2409,6 @@ function installYTPlayer(iframe) {
   if (p) return p;
   if (typeof YT === 'undefined' || typeof YT.Player !== 'function') return null;
 
-  function bindFirstInteractionUnmute() {
-    const btn = (iframe.closest('.video-preview-modal') || document).querySelector?.('.preview-volume-button');
-    const handler = () => {
-      try {
-        const player = _ytPlayers.get(iframe);
-        const audioState = applyPreviewTrailerAudioToYouTubePlayer(player, {
-          config: getConfig(),
-          soundOn: true
-        });
-        player?.playVideo?.();
-        if (btn) {
-          btn.innerHTML = audioState.muted
-            ? '<i class="fa-solid fa-volume-xmark"></i>'
-            : '<i class="fa-solid fa-volume-high"></i>';
-        }
-      } catch {}
-      cleanup();
-    };
-    const cleanup = () => {
-      ['pointerdown','keydown'].forEach(t => window.removeEventListener(t, handler, true));
-    };
-    ['pointerdown','keydown'].forEach(t => window.addEventListener(t, handler, { once:true, capture:true }));
-    setTimeout(cleanup, 6000);
-  }
-
   try {
     p = new YT.Player(iframe, {
       host: 'https://www.youtube-nocookie.com',
@@ -2404,19 +2429,26 @@ function installYTPlayer(iframe) {
             }
 
             if (!audioState.muted) {
-              applyPreviewTrailerAudioToYouTubePlayer(ev.target, {
-                config: getConfig(),
-                soundOn: true
-              });
-              try { ev.target.playVideo?.(); } catch {}
+              const player = ev.target;
+              const setIcon = (muted) => { if (btn) btn.innerHTML = muted ? '<i class="fa-solid fa-volume-xmark"></i>' : '<i class="fa-solid fa-volume-high"></i>'; };
+              const unmuteNow = () => applyPreviewTrailerAudioToYouTubePlayer(player, { config: getConfig(), soundOn: true });
+              unmuteNow();
+              try { player.playVideo?.(); } catch {}
+              // Fork Zigerus (4.0.0.81): verify. Without user activation the browser keeps the player muted or pauses
+              // it on unmute; then play muted and unmute on the first click or key (armFirstInteraction).
               setTimeout(() => {
                 try {
-                  const muted = typeof ev.target.isMuted === 'function' ? ev.target.isMuted() : true;
-                  if (muted) bindFirstInteractionUnmute();
-                } catch {
-                  bindFirstInteractionUnmute();
-                }
-              }, 250);
+                  const state = typeof player.getPlayerState === 'function' ? player.getPlayerState() : -2;
+                  const muted = typeof player.isMuted === 'function' ? player.isMuted() : true;
+                  const playing = state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING;
+                  if (!muted && playing) { setIcon(false); return; }
+                  if (!playing) { try { player.mute?.(); player.playVideo?.(); } catch {} }
+                  setIcon(true);
+                  armFirstInteraction(iframe, () => {
+                    try { unmuteNow(); player.playVideo?.(); setIcon(false); } catch {}
+                  });
+                } catch {}
+              }, 700);
             } else {
               ev.target.mute?.();
               if (btn) btn.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
@@ -3704,7 +3736,7 @@ function startVideoPlayback(url) {
     v.pause();
     v.src = url;
     v.load();
-    v.onloadedmetadata = () => { if (!/#jms-server-start$/.test(String(url))) v.currentTime = 600; v.play().catch(()=>{}); };
+    v.onloadedmetadata = () => { if (!/#jms-server-start$/.test(String(url))) v.currentTime = 600; playWithActivationFallback(v); };
   } catch {}
 }
 

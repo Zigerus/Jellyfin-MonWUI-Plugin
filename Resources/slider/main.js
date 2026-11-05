@@ -3449,6 +3449,42 @@ function isPlannedLastIndex(idx) {
   return Number.isFinite(idx) && idx === getPlannedLastIndex();
 }
 
+// Fork Zigerus (4.0.0.81): the cycle rebuild removes the hero and re-adds it ~200 ms later. A reader further down the
+// page saw everything jump by the hero's height (scroll anchoring corrects only one of the two changes). A spacer of
+// the same height holds the hero's place until the new container goes in (upsertSlidesContainerAtTop removes it).
+function holdSlidesSpace() {
+  releaseSlidesSpace();
+  try {
+    const old = document.querySelector("#indexPage:not(.hide) #monwui-slides-container, #homePage:not(.hide) #monwui-slides-container");
+    const h = old?.offsetHeight || 0;
+    if (!old || !old.parentNode || h <= 0) return;
+    // the header offset is only measured near the top of the page, so the new hero inherits the old one's
+    window.__jmsHeldHeaderOffset = old.style.getPropertyValue("--jms-slider-header-offset-px") || "";
+    const holder = document.createElement("div");
+    holder.id = "monwui-slides-holder";
+    holder.setAttribute("aria-hidden", "true");
+    holder.style.cssText = `height:${h}px;width:100%;pointer-events:none;`;
+    // insert the spacer and take the old hero out of the flow in one go, so the page height never changes; rules
+    // that target the hero's next sibling (an overlap margin) no longer apply, so match the next row's position
+    const next = old.nextElementSibling;
+    const nextTop = next ? next.getBoundingClientRect().top : null;
+    old.parentNode.insertBefore(holder, old);
+    old.style.setProperty("display", "none", "important");
+    if (next && nextTop !== null) {
+      const drift = next.getBoundingClientRect().top - nextTop;
+      if (Math.abs(drift) >= 1) holder.style.height = `${Math.max(0, h - drift)}px`;
+    }
+    window.__jmsSlidesHolderTimer = setTimeout(releaseSlidesSpace, 6000);
+  } catch {}
+}
+
+function releaseSlidesSpace() {
+  try { clearTimeout(window.__jmsSlidesHolderTimer); } catch {}
+  window.__jmsSlidesHolderTimer = null;
+  window.__jmsHeldHeaderOffset = "";
+  try { document.querySelectorAll("#monwui-slides-holder").forEach((n) => n.remove()); } catch {}
+}
+
 async function scheduleSliderRebuild(reason = "cycle-complete") {
   if (!isSliderEnabled()) return;
   if (window.__rebuildingSlider) return;
@@ -3461,11 +3497,14 @@ async function scheduleSliderRebuild(reason = "cycle-complete") {
     try { window.cleanupModalObserver?.(); } catch {}
     try { stopSlideTimer?.(); } catch {}
     try { hardProgressReset?.(); } catch {}
+    holdSlidesSpace();
     try { fullSliderReset({ reason: `scheduleSliderRebuild:${reason}` }); } catch {}
     document.querySelectorAll(".monwui-dot-navigation-container").forEach(n => n.remove());
     await new Promise(r => setTimeout(r, 30));
     window.__initOnHomeOnce = false;
-    initializeSliderOnHome({ forceManagedSectionsBoot: true });
+    // Fork Zigerus (4.0.0.81): a cycle rebuild happens while the user may be reading rows further down; only a
+    // fresh visit to home pins the page to the top (pinHomeScrollToTop), so keep the scroll position here.
+    initializeSliderOnHome({ forceManagedSectionsBoot: true, keepScroll: true });
   } finally {
     window.__rebuildingSlider = false;
   }
@@ -4340,11 +4379,15 @@ function upsertSlidesContainerAtTop(indexPage) {
   if (!c) {
     c = document.createElement("div");
     c.id = "monwui-slides-container";
+    // Fork Zigerus (4.0.0.81): a cycle rebuild (holdSlidesSpace) hands over the measured header offset
+    const heldOffset = window.__jmsHeldHeaderOffset;
+    if (heldOffset && document.getElementById("monwui-slides-holder")) c.style.setProperty("--jms-slider-header-offset-px", heldOffset);
   } else {
     if (c.parentElement) c.parentElement.removeChild(c);
   }
 
   placeSlidesContainerAtTop(indexPage, c);
+  releaseSlidesSpace();
   scheduleNativeAwareSlidesPlacement(indexPage, c);
   try {
     updateSlidePosition();
@@ -6442,7 +6485,7 @@ function pinHomeScrollToTop({ durationMs = 3200 } = {}) {
   tick();
 }
 
-function initializeSliderOnHome({ forceManagedSectionsBoot = false } = {}) {
+function initializeSliderOnHome({ forceManagedSectionsBoot = false, keepScroll = false } = {}) {
   const start = async () => {
     try {
       if (!isHomeRouteActive() || !isHomeVisible()) {
@@ -6586,7 +6629,7 @@ function initializeSliderOnHome({ forceManagedSectionsBoot = false } = {}) {
       fullSliderReset({ reason: "initializeSliderOnHome:slider-enabled" });
       bootPersonalRecsWires();
       upsertSlidesContainerAtTop(indexPage);
-      pinHomeScrollToTop();
+      if (!keepScroll) pinHomeScrollToTop();
       const sc = indexPage.querySelector('#monwui-slides-container');
       if (config.peakSlider && sc) {
         sc.scrollLeft = 0;

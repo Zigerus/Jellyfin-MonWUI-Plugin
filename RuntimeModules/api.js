@@ -3253,7 +3253,10 @@ export async function getVideoStreamUrl(
     const previewAudio = audioTracks.find((s) => s.Index === (audioLanguage ? audioStreamIndex : defaultAudioIndex)) || audioTracks[0] || null;
     if (!forceDirectPlay && previewAudio && !SAFE_PREVIEW_AUDIO.has(String(previewAudio.Codec || "").toLowerCase())) {
       const videoTrack = streams.find((s) => s.Type === "Video");
-      const copyVideo = String(videoTrack?.Codec || "").toLowerCase() === "h264";
+      // Fork Zigerus (4.0.0.81): copying a Blu-ray remux's video streams 25 Mbit/s (and fills the transcode cache at
+      // ffmpeg speed) for a thumbnail-sized preview; above 8 Mbit/s the video is scaled down like non-H.264 video
+      const videoBitRate = Number(videoTrack?.BitRate || videoSource?.Bitrate || 0);
+      const copyVideo = String(videoTrack?.Codec || "").toLowerCase() === "h264" && !(videoBitRate > 8_000_000);
       const runtimeTicks = Number(item?.RunTimeTicks || videoSource.RunTimeTicks || 0);
       const tenMinutes = 600 * 10000000;
       const serverStart = startTimeTicks > 0

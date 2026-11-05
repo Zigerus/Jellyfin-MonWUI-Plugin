@@ -5,6 +5,14 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.81 (Zigerus build, Jellyfin 12)
+
+### Fixes
+- **YouTube trailer previews start on a freshly loaded page.** Browsers only allow autoplay with sound once you have clicked or typed somewhere on the page; before that, a YouTube embed asked to start unmuted just showed its play button, so after a reload every hover preview waited for one click. With the sound setting on, such a preview now starts muted and is unmuted the moment the browser allows it: at once when it does, otherwise on your first click or key anywhere. The same fallback covers the film-itself preview, whose `play()` a browser can refuse in the same situation.
+- **A closed preview can no longer block its card.** A theme rule that forces the preview's display (the Lumen theme's card rule did) kept the closed preview in the page, invisible, on top of the poster it had opened from, so that card could not be hovered or clicked again until another preview opened. The closed preview now ignores the pointer whatever the theme does; Lumen also fixes its rule.
+- **The hero no longer moves the page when its slideshow starts over.** When the last slide finished and the hero rebuilt itself for a new round, the page was scrolled back to the top and, during the rebuild, the rows jumped by the hero's height. Rebuilding now keeps your scroll position and holds the hero's place.
+- **Lighter previews for very high-bitrate films.** The preview of a film with AC3/E-AC3/DTS/TrueHD audio copied H.264 video as it is; for a Blu-ray remux that meant streaming 25 Mbit/s (and writing about 1 GB to the transcode cache in ten seconds) for a thumbnail-sized preview. Video above 8 Mbit/s is now scaled to the preview size instead.
+
 ## 4.0.0.80 (Zigerus build, Jellyfin 12)
 
 ### Fixes

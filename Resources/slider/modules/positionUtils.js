@@ -457,6 +457,9 @@ function resolveTopStyleValue(prefix, rawTopValue, config = getConfig()) {
 }
 
 export function syncSliderHeaderOffset(container = findActiveSlidesContainer()) {
+  // Fork Zigerus (4.0.0.81): during a hero cycle rebuild (main.js holdSlidesSpace) there is briefly no container;
+  // clearing the root offset then would drop the home rows, whose top offset reads it, by the header height
+  if (!container && document.getElementById('monwui-slides-holder')) return;
   const config = getConfig();
   const variant = getActiveSliderVariant(config);
   const explicitSlideTop = hasExplicitSlideTop(config);

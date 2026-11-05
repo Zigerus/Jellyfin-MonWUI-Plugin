@@ -353,6 +353,9 @@ function waitForFavoritesTabAndApply(topValue, visualTopValue = '') {
 
 export function forceHomeSectionsTop() {
   const applyAlways = () => {
+    // Fork Zigerus (4.0.0.81): during a hero cycle rebuild there is briefly no slides container (main.js
+    // holdSlidesSpace); the values read from it would be empty and the rows would jump, so keep what is applied
+    if (document.getElementById('monwui-slides-holder') && !document.querySelector('#monwui-slides-container')) return;
     const topState = computeEffectiveTopState();
     const cfg = (typeof getConfig === 'function') ? getConfig() : {};
     const affectFavoritesTab = shouldAffectFavoritesTab(cfg);
@@ -373,6 +376,12 @@ export function forceHomeSectionsTop() {
 
   applyHomeTop = applyAlways;
   bindHomeTopLifecycle();
+
+  if (homeTopObserver) {
+    // Fork Zigerus (4.0.0.81): the caller has just cleared the rows' top (positionUtils updateSlidePosition); without an
+    // immediate re-apply the rows sit at top 0 for a frame (a 10vh jump) until the observer's next batch
+    try { applyAlways(); } catch {}
+  }
 
   if (!homeTopObserver) {
     if (document.readyState === 'loading') {
