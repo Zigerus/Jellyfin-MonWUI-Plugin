@@ -21,7 +21,8 @@ export const modalState = {
   _isModalClosing: false,
   _modalClosingUntil: 0,
   _lastModalHideAt: 0,
-  _soundOn: true,
+  // Fork Zigerus (4.0.0.79): start from the remembered preview-trailer sound choice (utils.js rememberPreviewAudio)
+  _soundOn: (() => { try { const v = JSON.parse(localStorage.getItem('jms:previewTrailerAudio') || 'null'); return !(v && v.soundOn === false); } catch { return true; } })(),
   _modalContext: null,
   _hoverOpenTimer: null,
   itemHoverAbortController: null,

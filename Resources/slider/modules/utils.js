@@ -283,6 +283,30 @@ function readPercentConfigValue(sourceConfig, key, fallback = 50) {
   return Math.max(0, Math.min(100, parsed));
 }
 
+// Fork Zigerus (4.0.0.79): remember the last preview-trailer sound choice (mute/unmute, slider level) so it
+// carries from one hover card to the next, and across reloads (Nathan: "the mute button needs to stay in memory").
+// An explicit choice wins over "start muted"; the volume limit still caps the level.
+const PREVIEW_AUDIO_MEMORY_KEY = "jms:previewTrailerAudio";
+
+export function readPreviewAudioMemory() {
+  try {
+    const v = JSON.parse(localStorage.getItem(PREVIEW_AUDIO_MEMORY_KEY) || "null");
+    if (!v || typeof v !== "object") return null;
+    const p = v.percent == null ? NaN : Number(v.percent);
+    return { soundOn: v.soundOn !== false, percent: Number.isFinite(p) ? Math.max(0, Math.min(100, Math.round(p))) : null };
+  } catch { return null; }
+}
+
+export function rememberPreviewAudio({ soundOn, percent } = {}) {
+  try {
+    const prev = readPreviewAudioMemory() || { soundOn: true, percent: null };
+    const next = { soundOn: typeof soundOn === "boolean" ? soundOn : prev.soundOn, percent: prev.percent };
+    const p = Number(percent);
+    if (percent != null && Number.isFinite(p)) next.percent = Math.max(0, Math.min(100, Math.round(p)));
+    localStorage.setItem(PREVIEW_AUDIO_MEMORY_KEY, JSON.stringify(next));
+  } catch {}
+}
+
 export function getPreviewTrailerAudioState({
   config: sourceConfig = null,
   soundOn = true,
@@ -290,10 +314,12 @@ export function getPreviewTrailerAudioState({
   ignoreStartMuted = false,
 } = {}) {
   const cfg = sourceConfig || getConfig() || {};
-  const startMuted = readBoolConfigValue(cfg, "previewTrailerStartMuted", false);
+  const memory = readPreviewAudioMemory();
+  const startMuted = memory ? false : readBoolConfigValue(cfg, "previewTrailerStartMuted", false);
   const volumeLimitEnabled = readBoolConfigValue(cfg, "previewTrailerVolumeLimit", false);
   const volumePercent = readPercentConfigValue(cfg, "previewTrailerVolumePercent", 50);
-  const effectivePercent = volumeLimitEnabled ? volumePercent : 100;
+  const limit = volumeLimitEnabled ? volumePercent : 100;
+  const effectivePercent = memory && memory.percent != null && memory.percent > 0 ? Math.min(memory.percent, limit) : limit;
   const muted =
     mutedByDevice === true ||
     soundOn === false ||

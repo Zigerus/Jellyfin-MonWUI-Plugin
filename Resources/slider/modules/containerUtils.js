@@ -747,7 +747,8 @@ export function createInfoContainer({ config, Genres, ProductionYear, Production
     parts.push(`<span class="yil"><i class="fa-solid fa-calendar"></i> ${yearText}</span>`);
   }
 
-  if (ProductionLocations && config.showCountryInfo) {
+  // Fork Zigerus (4.0.0.79): an empty list is truthy; without this the hero line got an empty country and a trailing separator
+  if ((Array.isArray(ProductionLocations) ? ProductionLocations.length > 0 : !!ProductionLocations) && config.showCountryInfo) {
     ensureFlagEmojiFont(resolveSliderAssetHref("/slider/src/fonts/TwemojiCountryFlags.woff2"));
     const getFlagEmoji = (code) => {
       const cc = String(code || "").toUpperCase();

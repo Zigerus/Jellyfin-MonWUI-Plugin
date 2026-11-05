@@ -7,6 +7,7 @@ import {
   applyPreviewTrailerAudioToVideo,
   applyPreviewTrailerAudioToYouTubePlayer,
   getPreviewTrailerAudioState,
+  rememberPreviewAudio,
   postPreviewTrailerAudioToYouTubeIframe
 } from './utils.js';
 import { getVideoQualityText } from './containerUtils.js';
@@ -923,6 +924,9 @@ export function createVideoModal({ showButtons = true, context = 'monwui-dot' } 
           player.mute?.();
           volumeButton.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
         }
+        // Fork Zigerus (4.0.0.79): the choice carries to the next card
+        modalState._soundOn = !!isMuted;
+        rememberPreviewAudio({ soundOn: !!isMuted });
       } catch (err) {
         console.error('Player ses kontrol hatası:', err);
         toggleYouTubeVolumeManual(trailerIframe, volumeButton);
@@ -942,6 +946,9 @@ export function createVideoModal({ showButtons = true, context = 'monwui-dot' } 
       volumeButton.innerHTML = modalState.modalVideo.muted
         ? '<i class="fa-solid fa-volume-xmark"></i>'
         : '<i class="fa-solid fa-volume-high"></i>';
+      // Fork Zigerus (4.0.0.79): the choice carries to the next card
+      modalState._soundOn = !modalState.modalVideo.muted;
+      rememberPreviewAudio({ soundOn: modalState._soundOn });
     }
   };
 
@@ -950,6 +957,7 @@ export function createVideoModal({ showButtons = true, context = 'monwui-dot' } 
 
   const percent = Math.max(0, Math.min(100, Number(volumeSlider.value) || 0));
   modalState._soundOn = percent > 0;
+  rememberPreviewAudio({ soundOn: percent > 0, percent: percent > 0 ? percent : undefined });
 
   const trailerIframe = modalState.videoModal?.querySelector?.('.preview-trailer-iframe');
   const trailerVisible = trailerIframe && trailerIframe.style.display !== 'none';
@@ -2483,6 +2491,7 @@ function ensureYTAPI() {
 
 export function setGlobalSound(on) {
   modalState._soundOn = !!on;
+  rememberPreviewAudio({ soundOn: !!on });
   applyVolumePreference();
 }
 
@@ -3467,6 +3476,28 @@ function softStopPlayback() {
   } catch {}
 }
 
+// Fork Zigerus (4.0.0.79): a theme can ask for the preview to take the hovered card's own shape, scaled up and
+// centred on it, instead of the fixed 500 px landscape panel. Lumen sets
+// `:root { --monwui-hover-shape: card; --monwui-hover-card-scale: 1.3 }`. Without the variable nothing changes.
+function readHoverCardShape() {
+  try {
+    const cs = getComputedStyle(document.documentElement);
+    if (String(cs.getPropertyValue('--monwui-hover-shape')).trim() !== 'card') return null;
+    const sc = parseFloat(cs.getPropertyValue('--monwui-hover-card-scale'));
+    return { scale: Number.isFinite(sc) && sc >= 1 && sc <= 2 ? sc : 1.3 };
+  } catch { return null; }
+}
+
+function hoverCardArtRect(item) {
+  try {
+    const art = item?.matches?.('.cardImageContainer, .cardScalable')
+      ? item
+      : (item?.querySelector?.('.cardImageContainer, .cardScalable') || item);
+    const r = art.getBoundingClientRect();
+    return (r.width > 40 && r.height > 40) ? r : item.getBoundingClientRect();
+  } catch { return item.getBoundingClientRect(); }
+}
+
 export function positionModalRelativeToItem(modal, item, options = {}) {
   const defaults = {
     modalWidth: 500,
@@ -3485,6 +3516,37 @@ export function positionModalRelativeToItem(modal, item, options = {}) {
     const viewportHeight = window.innerHeight;
     // Fork ParticularFlix: largura limitada pela janela e altura real do card (altura automatica)
     const mobile = viewportWidth <= 750;
+    const cardShape = mobile ? null : readHoverCardShape();
+    if (cardShape) {
+      const art = hoverCardArtRect(item);
+      const pad = settings.windowPadding;
+      const w = Math.min(Math.round(art.width * cardShape.scale), viewportWidth - pad * 2);
+      const h = Math.min(Math.round(art.height * cardShape.scale), viewportHeight - pad * 2);
+      let l = art.left + scrollX + (art.width - w) / 2;
+      let t = art.top + scrollY + (art.height - h) / 2;
+      // keep the card below Jellyfin's fixed header bar, which sits above it
+      let minTop = pad;
+      try {
+        // Jellyfin 12 draws its top bar as an MUI AppBar; older layouts use .skinHeader
+        for (const hdr of document.querySelectorAll('.MuiAppBar-root, .skinHeader')) {
+          const hb = hdr.getBoundingClientRect();
+          const pos = getComputedStyle(hdr).position;
+          if (hb.height > 0 && hb.bottom > 0 && (pos === 'fixed' || pos === 'sticky')) minTop = Math.max(minTop, hb.bottom + 8);
+        }
+      } catch {}
+      l = Math.max(pad + scrollX, Math.min(l, viewportWidth + scrollX - w - pad));
+      t = Math.max(minTop + scrollY, Math.min(t, viewportHeight + scrollY - h - pad));
+      modal.classList.add('video-preview-modal--card');
+      modal.classList.toggle('video-preview-modal--card-wide', w > h);
+      modalStyle.position = 'absolute';
+      modalStyle.width = `${w}px`;
+      modalStyle.height = `${h}px`;
+      modalStyle.left = `${l}px`;
+      modalStyle.top = `${t}px`;
+      modalStyle.transformOrigin = 'center center';
+      return;
+    }
+    modal.classList.remove('video-preview-modal--card', 'video-preview-modal--card-wide');
     const scale = getPreviewModalScale();
     if (Math.abs(scale - (modalState.__cssScale || 1)) > 0.001) { try { injectOrUpdateModalStyle(); } catch {} }
     const width = Math.max(240, Math.min(mobile ? 380 : Math.round(settings.modalWidth * scale), viewportWidth - settings.windowPadding * 2));
@@ -3614,6 +3676,8 @@ function toggleYouTubeVolumeManual(iframe, volumeBtn) {
     const nextMute = currentMute === '1' ? '0' : '1';
     url.searchParams.set('mute', nextMute);
     iframe.src = url.toString();
+    modalState._soundOn = nextMute === '0';
+    rememberPreviewAudio({ soundOn: nextMute === '0' });
     if (nextMute === '0') {
       setTimeout(() => postPreviewTrailerAudioToYouTubeIframe(iframe, {
         config: getConfig(),

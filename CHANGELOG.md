@@ -5,6 +5,15 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.79 (Zigerus build, Jellyfin 12)
+
+### Fixes
+- The hero's info line no longer ends with a stray separator for titles that have no production country.
+
+### Card hover
+- **The trailer preview remembers your sound choice.** Mute or unmute it (or move its volume slider) on one card and every following preview starts the same way, including after a reload. Before, the mute button only affected the card you were on, so the next hover started with sound again. An explicit choice now wins over the "start muted" setting; the volume limit still applies. The details popup and studio trailer previews use the same memory.
+- **Themes can make the preview take the card's own shape.** With `--monwui-hover-shape: card` (and optionally `--monwui-hover-card-scale`, default 1.3) set on `:root`, the preview opens as a larger copy of the hovered card, centred on it and clear of the top bar, with the class `video-preview-modal--card` (`--card-wide` for 16:9 cards) for styling. Without the variable the preview is unchanged. The Lumen theme uses it.
+
 ## 4.0.0.78 (Zigerus build, Jellyfin 12)
 
 ### New in the details popup
