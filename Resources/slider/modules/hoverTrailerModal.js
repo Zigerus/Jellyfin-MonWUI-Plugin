@@ -407,6 +407,9 @@ export async function updateModalContent(item, videoUrl) {
   const cfg = getConfig();
 
   clearTransientOverlays(modal);
+  // Fork Zigerus (4.0.0.84): a previous card may have played the fallback clip (speaker button hidden)
+  modalState._fallbackActive = false;
+  setVolumeControlHidden(modal, false);
 
   const contextIsDot = modalState._modalContext === 'monwui-dot';
   const dotMode = cfg.dotPreviewPlaybackMode || null;
@@ -493,7 +496,7 @@ export async function updateModalContent(item, videoUrl) {
       showYT(trailerInfo.level === 'series'
         ? (cfg.languageLabels?.diziFragmani || 'Dizi fragmanı')
         : (cfg.languageLabels?.fragman || 'Fragman'));
-    } else {
+    } else if (!(await playPreviewFallback(modal, item))) {
       hideTrailerIframe(modal);
       if (modalState.modalVideo) {
         modalState.modalVideo.style.display = 'none';
@@ -523,7 +526,7 @@ export async function updateModalContent(item, videoUrl) {
         : (cfg.languageLabels?.fragman || 'Fragman'));
     } else if (videoUrl) {
       if (await gatePlaybackStart(item?.Id)) modal.initVideoPlayer(videoUrl);
-    } else {
+    } else if (!(await playPreviewFallback(modal, item))) {
       hideTrailerIframe(modal);
       if (modalState.modalVideo) {
         try { modalState.modalVideo.pause(); } catch {}
@@ -549,7 +552,7 @@ export async function updateModalContent(item, videoUrl) {
           ? (cfg.languageLabels?.diziFragmani || 'Dizi fragmanı')
           : (cfg.languageLabels?.fragman || 'Fragman'));
       }
-    } else {
+    } else if (!(await playPreviewFallback(modal, item))) {
       hideTrailerIframe(modal);
       if (modalState.modalVideo) {
         try { modalState.modalVideo.pause(); } catch {}
@@ -774,6 +777,16 @@ export function createVideoModal({ showButtons = true, context = 'monwui-dot' } 
   video.addEventListener('playing', () => {
     video.style.opacity = '1';
     try { modal?.hideBackdrop?.(); } catch {}
+  });
+  // Fork Zigerus (4.0.0.84): a fallback clip that fails to load gives way to the note (an empty src also errors: ignored)
+  video.addEventListener('error', () => {
+    try {
+      if (!modalState._fallbackActive || !/preview-fallback/.test(video.currentSrc || video.src || '')) return;
+      modalState._fallbackActive = false;
+      video.style.display = 'none';
+      setVolumeControlHidden(modal, false);
+      showNoTrailerMessage(modal, getConfig()?.languageLabels?.trailerNotAvailable || 'Fragman bulunamadı');
+    } catch {}
   });
 
   const infoContainer = document.createElement('div');
@@ -1112,8 +1125,13 @@ export function createVideoModal({ showButtons = true, context = 'monwui-dot' } 
 
     video.src = url;
     applyPreviewTrailerAudioToVideo(video, { config: getConfig(), soundOn: modalState._soundOn });
+    // Fork Zigerus (4.0.0.84): the fallback clip is silent and loops from its start; it plays muted with no speaker button
+    const fallback = isPreviewFallbackUrl(String(url));
+    modalState._fallbackActive = fallback;
+    if (fallback) { video.muted = true; video.style.opacity = '1'; }
+    setVolumeControlHidden(modal, fallback);
     // Fork Zigerus (4.0.0.80): a transcoded preview (#jms-server-start) already starts where it should and cannot seek
-    const serverStart = /#jms-server-start$/.test(String(url));
+    const serverStart = fallback || /#jms-server-start$/.test(String(url));
     video.addEventListener('loadedmetadata', () => {
       if (!serverStart) video.currentTime = 10 * 60;
       playWithActivationFallback(video, modal);
@@ -2414,6 +2432,22 @@ function installYTPlayer(iframe) {
       host: 'https://www.youtube-nocookie.com',
       playerVars: getYTPlayerVars(),
       events: {
+        // Fork Zigerus (4.0.0.84): an embed that cannot play (removed, private, embedding off, region-locked: codes
+        // 2/5/100/101/150) is replaced by the fallback clip, or by the note when there is none
+        onError: (ev) => {
+          try {
+            if (_ytPlayers.get(iframe) !== p) return;
+            const root = iframe?.closest?.('.video-preview-modal');
+            if (!root || !root.classList.contains('video-preview-modal--visible')) return;
+            console.warn('[JMSFusion] YouTube trailer error', ev?.data);
+            const item = root.dataset?.itemId ? { Id: root.dataset.itemId } : null;
+            playPreviewFallback(root, item).then((ok) => {
+              if (ok) return;
+              hideTrailerIframe(root);
+              showNoTrailerMessage(root, getConfig()?.languageLabels?.trailerNotAvailable || 'Fragman bulunamadı');
+            });
+          } catch {}
+        },
         onReady: (ev) => {
           try {
             const root = iframe?.closest?.('.video-preview-modal') || document.querySelector('.video-preview-modal');
@@ -3640,6 +3674,54 @@ export function addTrailerTip(modal, text) {
     modal.querySelector?.('.video-container')?.appendChild(tip);
   }
   tip.textContent = text;
+}
+
+// Fork Zigerus (4.0.0.84): when a card has nothing to preview (no trailer, no playable video, or a YouTube embed
+// that errors), a looping clip from MonWUI's custom folder plays in its place: preview-fallback.mp4 for the
+// card-shaped preview, preview-fallback-wide.mp4 for the wide one (each falls back to the other). The files are
+// optional: one HEAD per file per page load tells whether they exist; without them the old note shows.
+const PREVIEW_FALLBACK_FILES = { card: 'preview-fallback.mp4', wide: 'preview-fallback-wide.mp4' };
+const PREVIEW_FALLBACK_MARK = '#jms-fallback';
+const _previewFallbackProbe = new Map();
+function previewFallbackExists(name) {
+  let p = _previewFallbackProbe.get(name);
+  if (!p) {
+    p = fetch(withServer('/JMSFusion/custom/' + name), { method: 'HEAD', cache: 'no-cache' })
+      .then(r => !!r.ok).catch(() => false);
+    _previewFallbackProbe.set(name, p);
+  }
+  return p;
+}
+async function getPreviewFallbackUrl(modal) {
+  const cls = modal?.classList;
+  const wide = !!cls && (cls.contains('video-preview-modal--card-wide') || !cls.contains('video-preview-modal--card'));
+  for (const kind of (wide ? ['wide', 'card'] : ['card', 'wide'])) {
+    const name = PREVIEW_FALLBACK_FILES[kind];
+    if (await previewFallbackExists(name)) return '/JMSFusion/custom/' + name + PREVIEW_FALLBACK_MARK;
+  }
+  return null;
+}
+function isPreviewFallbackUrl(url) {
+  return typeof url === 'string' && url.endsWith(PREVIEW_FALLBACK_MARK);
+}
+function setVolumeControlHidden(modal, hidden) {
+  try {
+    const wrap = modal?.querySelector?.('.preview-volume-wrap');
+    if (wrap) wrap.style.display = hidden ? 'none' : '';
+  } catch {}
+}
+async function playPreviewFallback(modal, item) {
+  try {
+    if (!modal || typeof modal.initVideoPlayer !== 'function' || !modalState.modalVideo) return false;
+    const url = await getPreviewFallbackUrl(modal);
+    if (!url) return false;
+    if (item?.Id && modal.dataset?.itemId && String(modal.dataset.itemId) !== String(item.Id)) return false;
+    hideTrailerIframe(modal);
+    clearTransientOverlays(modal);
+    modalState.modalVideo.style.display = 'block';
+    if (await gatePlaybackStart(item?.Id)) modal.initVideoPlayer(url);
+    return true;
+  } catch { return false; }
 }
 
 function showNoTrailerMessage(modal, text) {

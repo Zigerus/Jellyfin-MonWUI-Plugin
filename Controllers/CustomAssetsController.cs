@@ -12,7 +12,11 @@ namespace Jellyfin.Plugin.JMSFusion.Controllers;
 /// </summary>
 public static class CustomAssets
 {
-    private static readonly Regex SafeName = new(@"^[A-Za-z0-9_][A-Za-z0-9._-]{0,100}\.(js|css|woff2|woff|ttf|otf)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    // Fork Zigerus (4.0.0.84): .mp4/.webm are served too (never injected), for the hover preview's fallback clip
+    private static readonly Regex SafeName = new(@"^[A-Za-z0-9_][A-Za-z0-9._-]{0,100}\.(js|css|woff2|woff|ttf|otf|mp4|webm)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    public static bool IsVideo(string name) =>
+        name.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".webm", StringComparison.OrdinalIgnoreCase);
 
     public static bool IsSafeName(string? name) => !string.IsNullOrEmpty(name) && SafeName.IsMatch(name);
 
@@ -30,6 +34,8 @@ public static class CustomAssets
             ".woff" => "font/woff",
             ".ttf" => "font/ttf",
             ".otf" => "font/otf",
+            ".mp4" => "video/mp4",
+            ".webm" => "video/webm",
             _ => "application/javascript; charset=utf-8"
         };
     }
@@ -92,6 +98,7 @@ public static class CustomAssets
 public class CustomAssetsController : ControllerBase
 {
     [HttpGet("{name}")]
+    [HttpHead("{name}")]   // Fork Zigerus (4.0.0.84): the hover module asks with HEAD whether a fallback clip exists
     public IActionResult Get(string name)
     {
         if (!CustomAssets.IsSafeName(name))
@@ -117,6 +124,7 @@ public class CustomAssetsController : ControllerBase
         Response.Headers["Cache-Control"] = Request.Query.ContainsKey("v")
             ? "public, max-age=31536000, immutable"
             : "no-cache";
-        return PhysicalFile(full, contentType);
+        // a video answers Range requests (browsers fetch <video> sources in ranges and seek with them)
+        return PhysicalFile(full, contentType, enableRangeProcessing: CustomAssets.IsVideo(name));
     }
 }

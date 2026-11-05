@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.84 (Zigerus build, Jellyfin 12)
+
+### Features
+- **A fallback clip when a card has nothing to preview.** Drop `preview-fallback.mp4` (card-shaped, 2:3) and optionally `preview-fallback-wide.mp4` (16:9) into the plugin's `custom` folder and the hover preview plays that clip, looping and muted with no speaker button, whenever a title has no trailer and no playable video (an empty or not-yet-downloaded series, trailer-only mode on a title without a trailer) and whenever a YouTube embed reports an error (removed, private, embedding off, region-locked). Without the files the "trailer not available" note shows as before. The custom folder now serves `.mp4`/`.webm` (never injected), answers `HEAD`, and honours `Range` requests for videos.
+
 ## 4.0.0.83 (Zigerus build, Jellyfin 12)
 
 ### Fixes
