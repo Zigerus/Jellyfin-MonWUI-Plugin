@@ -313,7 +313,22 @@ async function __destroyGmmpBeforeVideoPlayNow() {
   }
 }
 
-async function startResolvedVideoPlayback({ itemId, item, requesterUserId, persistDebug }) {
+// Fork Zigerus (4.0.0.78): track choices from the details popup (audio/subtitle pickers). Only whole
+// numbers survive; subtitleStreamIndex -1 means off, as in jellyfin-web's own item page.
+function normalizeTrackOptions(trackOptions) {
+  if (!trackOptions || typeof trackOptions !== "object") return null;
+  const out = {};
+  const audio = Number(trackOptions.audioStreamIndex);
+  const sub = Number(trackOptions.subtitleStreamIndex);
+  if (trackOptions.audioStreamIndex != null && Number.isInteger(audio) && audio >= 0) out.audioStreamIndex = audio;
+  if (trackOptions.subtitleStreamIndex != null && Number.isInteger(sub) && sub >= -1) out.subtitleStreamIndex = sub;
+  if (!Object.keys(out).length) return null;
+  const sourceId = String(trackOptions.mediaSourceId || "").trim();
+  if (sourceId) out.mediaSourceId = sourceId;
+  return out;
+}
+
+async function startResolvedVideoPlayback({ itemId, item, requesterUserId, persistDebug, trackOptions = null }) {
   const normalizedItemId = String(itemId || "");
   if (isLiveTvPlaybackItem(item)) {
     persistDebug?.({
@@ -336,7 +351,8 @@ async function startResolvedVideoPlayback({ itemId, item, requesterUserId, persi
 
   const localKick = await tryLocalPlaybackStart(normalizedItemId, {
     startPositionTicks: resumeTicks,
-    item
+    item,
+    trackOptions
   }).catch(() => ({ tried: false, started: false, attempts: [] }));
 
   if (localKick?.started) {
@@ -2479,7 +2495,43 @@ async function tryWebpackShortcutPlaybackStart(itemId, { startPositionTicks = 0,
   }
 }
 
-async function tryWebpackPlaybackManagerStart(itemId, { startPositionTicks = 0, item = null } = {}) {
+// Fork Zigerus (4.0.0.78): jellyfin-web 12.4 no longer has playbackManager at module 39738 (it is 68221 in
+// 12.4.0) and its production build exposes no module cache (req.c), so the lookup below always failed and Play
+// Now fell back to itemShortcuts, which cannot carry an audio/subtitle choice. Find the module by its own method
+// names in the factory table instead (one match in 12.4.0, ~3 ms) and remember the id for the page's lifetime.
+// Only used when the popup passes track choices, so every other Play Now keeps its tested path.
+const PLAYBACK_MANAGER_FINGERPRINT = ["getCurrentPlayer", "canPlay", "setAudioStreamIndex", "getSubtitleStreamIndex", "getMaxStreamingBitrate"];
+function findWebpackPlaybackManager(req) {
+  const isPm = (o) => !!o && typeof o.play === "function" && typeof o.canPlay === "function" && typeof o.getCurrentPlayer === "function";
+  const fromId = (id) => {
+    try {
+      const ex = req(id);
+      if (!ex) return null;
+      if (isPm(ex.f)) return ex.f;
+      for (const k of Object.keys(ex)) { if (isPm(ex[k])) return ex[k]; }
+    } catch {}
+    return null;
+  };
+  try {
+    const known = window.__jmsPlaybackManagerModuleId;
+    if (known != null) { const pm = fromId(known); if (pm) return pm; }
+  } catch {}
+  const factories = req?.m || {};
+  for (const id of Object.keys(factories)) {
+    let src = "";
+    try { src = String(factories[id]); } catch { continue; }
+    if (!PLAYBACK_MANAGER_FINGERPRINT.every((n) => src.includes(n))) continue;
+    const key = /^\d+$/.test(id) ? Number(id) : id;
+    const pm = fromId(key);
+    if (pm) {
+      try { window.__jmsPlaybackManagerModuleId = key; } catch {}
+      return pm;
+    }
+  }
+  return null;
+}
+
+async function tryWebpackPlaybackManagerStart(itemId, { startPositionTicks = 0, item = null, trackOptions = null } = {}) {
   const attempts = [];
   const req = getWebpackRequireForPlayNow();
   if (!req) {
@@ -2494,6 +2546,10 @@ async function tryWebpackPlaybackManagerStart(itemId, { startPositionTicks = 0, 
       const direct = req(39738);
       if (direct?.f?.play) playbackManager = direct.f;
     } catch {}
+
+    if (!playbackManager && trackOptions) {
+      playbackManager = findWebpackPlaybackManager(req);
+    }
 
     if (!playbackManager && req.c) {
       for (const mod of Object.values(req.c)) {
@@ -2533,6 +2589,7 @@ async function tryWebpackPlaybackManagerStart(itemId, { startPositionTicks = 0, 
     if (stub.UserData?.PlaybackPositionTicks > 0) {
       payload.startPositionTicks = stub.UserData.PlaybackPositionTicks;
     }
+    if (trackOptions) Object.assign(payload, trackOptions);
 
     const maybePromise = playbackManager.play(payload);
     if (maybePromise && typeof maybePromise.then === "function") {
@@ -2559,7 +2616,7 @@ async function tryWebpackPlaybackManagerStart(itemId, { startPositionTicks = 0, 
   }
 }
 
-async function tryLocalPlaybackStart(itemId, { startPositionTicks = 0, item = null } = {}) {
+async function tryLocalPlaybackStart(itemId, { startPositionTicks = 0, item = null, trackOptions = null } = {}) {
   const normalizedId = String(itemId || "").trim();
   if (!normalizedId) {
     return { tried: false, started: false, attempts: [] };
@@ -2577,10 +2634,15 @@ async function tryLocalPlaybackStart(itemId, { startPositionTicks = 0, item = nu
   if (playItemsPayload && cappedStartTicks > 0) {
     playItemsPayload.startPositionTicks = cappedStartTicks;
   }
+  if (trackOptions) {
+    Object.assign(basePlayPayload, trackOptions);
+    if (playItemsPayload) Object.assign(playItemsPayload, trackOptions);
+  }
 
   const webpackPlaybackKick = await tryWebpackPlaybackManagerStart(normalizedId, {
     startPositionTicks: cappedStartTicks,
-    item
+    item,
+    trackOptions
   }).catch(() => ({ tried: false, started: false, attempts: [] }));
   if (Array.isArray(webpackPlaybackKick?.attempts)) {
     attempts.push(...webpackPlaybackKick.attempts);
@@ -2722,7 +2784,7 @@ function getActivePlayNowInFlight(itemId) {
   return __playNowInFlight.promise;
 }
 
-export async function playNow(itemId) {
+export async function playNow(itemId, trackOptions = null) {
   const playNowRequestId = String(itemId || "").trim();
   notifyPlaybackStartRequested({
     source: "api.playNow",
@@ -2916,11 +2978,15 @@ export async function playNow(itemId) {
       });
     }
 
+    // Fork Zigerus (4.0.0.78): track choices belong to the item they were picked on; a Series or
+    // Season resolves to an episode above, whose stream indexes can differ, so drop them then.
+    const resolvedTrackOptions = String(itemId) === playNowRequestId ? normalizeTrackOptions(trackOptions) : null;
     return await startResolvedVideoPlayback({
       itemId,
       item,
       requesterUserId,
-      persistDebug
+      persistDebug,
+      trackOptions: resolvedTrackOptions
     });
   } catch (err) {
     setLastPlayNowBlockReason("");

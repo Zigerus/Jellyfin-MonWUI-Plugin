@@ -2320,8 +2320,25 @@ function getVideoQualityLabel(videoStream) {
   return [quality, dynamicRange, codec, fpsText, bitrate].filter(Boolean).join(" • ");
 }
 
+// Fork Zigerus (4.0.0.78): Jellyfin sends ISO 639-2 codes ("eng"); show the language's name in the UI language.
+let __jmsdmLangNames;
+function languageName(code) {
+  const c = safeText(code).trim();
+  if (!c || c.toLowerCase() === "und") return "";
+  try {
+    if (__jmsdmLangNames === undefined) {
+      __jmsdmLangNames = (typeof Intl !== "undefined" && Intl.DisplayNames)
+        ? new Intl.DisplayNames([document.documentElement.lang || navigator.language || "en"], { type: "language" })
+        : null;
+    }
+    const n = __jmsdmLangNames?.of(c);
+    if (n && n.toLowerCase() !== c.toLowerCase() && n !== "root") return n;
+  } catch {}
+  return c;
+}
+
 function formatAudioStream(stream) {
-  const language = safeText(stream?.DisplayLanguage || stream?.Language || stream?.LanguageCode);
+  const language = safeText(stream?.DisplayLanguage) || languageName(stream?.Language || stream?.LanguageCode);
   const codec = safeText(stream?.Codec).toUpperCase();
   const channels = formatChannels(stream?.Channels);
   const bitrate = formatBitrate(stream?.BitRate);
@@ -2334,14 +2351,307 @@ function formatAudioStream(stream) {
 }
 
 function formatSubtitleStream(stream) {
-  const language = safeText(stream?.DisplayLanguage || stream?.Language || stream?.LanguageCode);
+  const language = safeText(stream?.DisplayLanguage) || languageName(stream?.Language || stream?.LanguageCode);
   const codec = safeText(stream?.Codec).toUpperCase();
-  const title = safeText(stream?.DisplayTitle || stream?.Title);
+  // Fork Zigerus (4.0.0.78): Title, not DisplayTitle; Jellyfin's DisplayTitle repeats the language and codec
+  const rawTitle = safeText(stream?.Title);
+  const title = (rawTitle && !/^forced$/i.test(rawTitle) && rawTitle.toLowerCase() !== language.toLowerCase()) ? rawTitle : "";
   const flags = [];
   if (stream?.IsDefault) flags.push(label("default", "Varsayılan"));
   if (stream?.IsForced) flags.push(label("forced", "Zorunlu"));
   if (stream?.IsExternal) flags.push(label("external", "Harici"));
   return [language, codec, title, flags.join(" • ")].filter(Boolean).join(" • ");
+}
+
+// Fork Zigerus (4.0.0.78): audio and subtitle pickers in the details popup. Play Now passes the
+// chosen tracks to jellyfin-web's playbackManager.play (the same options its own item page sends).
+// Each picker opens on the track Jellyfin would pick for this user: MediaSources[0]
+// DefaultAudioStreamIndex / DefaultSubtitleStreamIndex (-1 = subtitles off).
+const PICKABLE_TRACK_TYPES = new Set(["Movie", "Episode", "Video", "MusicVideo"]);
+
+function buildTrackPickerState(item) {
+  if (!item || !PICKABLE_TRACK_TYPES.has(safeText(item?.Type))) return null;
+  const source = Array.isArray(item?.MediaSources) && item.MediaSources.length ? item.MediaSources[0] : null;
+  const streams = Array.isArray(source?.MediaStreams) && source.MediaStreams.length
+    ? source.MediaStreams
+    : (Array.isArray(item?.MediaStreams) ? item.MediaStreams : []);
+  const byType = (type) => streams.filter((s) => safeText(s?.Type).toLowerCase() === type && Number.isInteger(s?.Index));
+  const audio = byType("audio");
+  const subs = byType("subtitle");
+
+  let audioIndex = Number.isInteger(source?.DefaultAudioStreamIndex) ? source.DefaultAudioStreamIndex : null;
+  if (!audio.some((s) => s.Index === audioIndex)) {
+    audioIndex = (audio.find((s) => s?.IsDefault) || audio[0] || {}).Index ?? null;
+  }
+  let subIndex = Number.isInteger(source?.DefaultSubtitleStreamIndex) ? source.DefaultSubtitleStreamIndex : -1;
+  if (subIndex !== -1 && !subs.some((s) => s.Index === subIndex)) subIndex = -1;
+
+  const state = {
+    mediaSourceId: safeText(source?.Id || item?.Id),
+    audio: audio.length > 1 ? audio : null,
+    subs: subs.length ? subs : null,
+    audioIndex,
+    subIndex,
+    initialAudioIndex: audioIndex,
+    initialSubIndex: subIndex
+  };
+  return state.audio || state.subs ? state : null;
+}
+
+function trackOptionParts(stream, kind) {
+  const language = safeText(stream?.DisplayLanguage) || languageName(stream?.Language || stream?.LanguageCode);
+  const codec = safeText(stream?.Codec).toUpperCase();
+  const flags = [];
+  if (stream?.IsDefault) flags.push(label("default", "Default"));
+  if (stream?.IsForced) flags.push(label("forced", "Forced"));
+  if (stream?.IsExternal) flags.push(label("external", "External"));
+  const title = safeText(stream?.Title);
+  const extraTitle = (title && title.toLowerCase() !== language.toLowerCase() && !flags.some((f) => f.toLowerCase() === title.toLowerCase())) ? title : "";
+  if (extraTitle) flags.push(extraTitle);
+  // the closed pill must tell two same-language tracks apart: carry Forced / the track title there too
+  const tag = stream?.IsForced ? label("forced", "Forced") : extraTitle;
+  const withTag = (v) => (tag ? `${v} (${tag})` : v);
+  if (kind === "audio") {
+    const channels = formatChannels(stream?.Channels);
+    const text = [language, codec, channels, formatBitrate(stream?.BitRate)].filter(Boolean).join(" • ");
+    const short = [language, [codec, channels].filter(Boolean).join(" ")].filter(Boolean).join(" • ");
+    return { text: text || safeText(stream?.DisplayTitle), short: withTag(short || safeText(stream?.DisplayTitle)), flag: flags.join(" • ") };
+  }
+  const text = [language, codec].filter(Boolean).join(" • ") || safeText(stream?.DisplayTitle);
+  return { text, short: withTag(text), flag: flags.join(" • ") };
+}
+
+function renderTrackPickersHtml(state) {
+  if (!state) return "";
+  const chevron = `<svg class="jmsdm-trackbtn-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const picker = (kind, streams, selected, btnLabel, menuTitle) => {
+    const opts = [];
+    if (kind === "sub") opts.push({ index: -1, text: label("subtitlesOffLabel", "Off"), short: label("subtitlesOffLabel", "Off"), flag: "" });
+    for (const s of streams) opts.push({ index: s.Index, ...trackOptionParts(s, kind === "sub" ? "sub" : "audio") });
+    const current = opts.find((o) => o.index === selected) || opts[0];
+    return `
+      <div class="jmsdm-trackpick" data-kind="${kind}">
+        <button type="button" class="jmsdm-trackbtn" aria-haspopup="listbox" aria-expanded="false">
+          <span class="jmsdm-trackbtn-label">${escapeHtml(btnLabel)}</span>
+          <span class="jmsdm-trackbtn-value">${escapeHtml(current?.short || "")}</span>
+          ${chevron}
+        </button>
+        <template class="jmsdm-trackmenu-tpl">
+          <div class="jmsdm-floatmenu jmsdm-trackmenu" role="listbox" aria-label="${escapeHtml(menuTitle)}">
+            <div class="jmsdm-floatmenu-title">${escapeHtml(menuTitle)}</div>
+            ${opts.map((o) => `
+              <button type="button" role="option" class="jmsdm-trackopt" data-index="${o.index}" data-short="${escapeHtml(o.short)}" aria-selected="${o.index === current?.index ? "true" : "false"}">
+                <span class="jmsdm-trackopt-dot" aria-hidden="true"></span>
+                <span class="jmsdm-trackopt-text">${escapeHtml(o.text)}</span>
+                ${o.flag ? `<span class="jmsdm-trackopt-flag">${escapeHtml(o.flag)}</span>` : ""}
+              </button>`).join("")}
+          </div>
+        </template>
+      </div>`;
+  };
+  return `
+    <div class="jmsdm-tracks">
+      ${state.audio ? picker("audio", state.audio, state.audioIndex, label("audioTrackLabel", "Audio"), label("audioTrackMenuTitle", "Audio track")) : ""}
+      ${state.subs ? picker("sub", state.subs, state.subIndex, label("subtitleTrackLabel", "Subtitles"), label("subtitleTrackMenuTitle", "Subtitles")) : ""}
+    </div>`;
+}
+
+// Fork Zigerus (4.0.0.78): menus float in #jms-details-modal-root (position: fixed) because the popup's
+// columns are scroll containers and the card clips (overflow: hidden), so an in-flow menu would be cut off.
+function openFloatingMenu(root, trigger, menuEl, { onClose } = {}) {
+  closeFloatingMenu(root);
+  menuEl.dataset.jmsdmFloat = "1";
+  root.appendChild(menuEl);
+  const place = () => {
+    const r = trigger.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const w = menuEl.offsetWidth, h = menuEl.offsetHeight;
+    let left = Math.min(r.left, vw - w - 12);
+    left = Math.max(12, left);
+    let top = r.bottom + 8;
+    if (top + h > vh - 12 && r.top - h - 8 > 12) top = r.top - h - 8;
+    menuEl.style.left = `${Math.round(left)}px`;
+    menuEl.style.top = `${Math.round(top)}px`;
+  };
+  place();
+  trigger.setAttribute("aria-expanded", "true");
+  const ac = new AbortController();
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    ac.abort();
+    menuEl.remove();
+    trigger.setAttribute("aria-expanded", "false");
+    if (root.__jmsdmFloatClose === close) root.__jmsdmFloatClose = null;
+    try { onClose?.(); } catch {}
+  };
+  root.__jmsdmFloatClose = close;
+  const onDown = (e) => {
+    if (menuEl.contains(e.target) || trigger.contains(e.target)) return;
+    close();
+  };
+  const onKey = (e) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    close();
+    try { trigger.focus(); } catch {}
+  };
+  window.addEventListener("pointerdown", onDown, { capture: true, signal: ac.signal });
+  window.addEventListener("keydown", onKey, { capture: true, signal: ac.signal });
+  window.addEventListener("resize", close, { signal: ac.signal });
+  root.querySelectorAll(".jmsdm-left, .jmsdm-right").forEach((el) => el.addEventListener("scroll", close, { passive: true, signal: ac.signal }));
+  // the menu's height can change after it opens (the playlist list loads async)
+  menuEl.__jmsdmPlace = place;
+  return close;
+}
+
+function closeFloatingMenu(root) {
+  try { root?.__jmsdmFloatClose?.(); } catch {}
+  if (root) root.__jmsdmFloatClose = null;
+}
+
+function wireTrackPickers(root, state) {
+  if (!state) return;
+  root.querySelectorAll(".jmsdm-trackpick").forEach((pick) => {
+    const kind = pick.dataset.kind;
+    const btn = pick.querySelector(".jmsdm-trackbtn");
+    const tpl = pick.querySelector(".jmsdm-trackmenu-tpl");
+    if (!btn || !tpl) return;
+    addEventListener(btn, "click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (btn.getAttribute("aria-expanded") === "true") { closeFloatingMenu(root); return; }
+      const menu = tpl.content.firstElementChild.cloneNode(true);
+      const selected = kind === "sub" ? state.subIndex : state.audioIndex;
+      menu.querySelectorAll(".jmsdm-trackopt").forEach((o) => o.setAttribute("aria-selected", Number(o.dataset.index) === selected ? "true" : "false"));
+      menu.addEventListener("click", (ev) => {
+        const opt = ev.target.closest(".jmsdm-trackopt");
+        if (!opt) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        const idx = Number(opt.dataset.index);
+        if (kind === "sub") state.subIndex = idx; else state.audioIndex = idx;
+        const valueEl = btn.querySelector(".jmsdm-trackbtn-value");
+        if (valueEl) valueEl.textContent = opt.dataset.short || "";
+        closeFloatingMenu(root);
+        try { btn.focus(); } catch {}
+      });
+      openFloatingMenu(root, btn, menu);
+      try { (menu.querySelector('.jmsdm-trackopt[aria-selected="true"]') || menu.querySelector(".jmsdm-trackopt"))?.focus(); } catch {}
+    });
+  });
+}
+
+// Fork Zigerus (4.0.0.78): "Add to playlist" next to Go to Page. Lists the user's Jellyfin playlists
+// (audio-only playlists left out) and can create a new one with this item in it.
+function wireAddToPlaylist(root, btn, item) {
+  if (!btn || !item?.Id) return;
+  const t = (key, fallback) => label(key, fallback);
+  const userId = () => safeText(getSessionInfo?.()?.userId);
+  const notify = (msg, type = "success") => notifyStudioHubResult(msg, type, type === "error" ? "triangle-exclamation" : "list");
+
+  const buildMenu = () => {
+    const menu = document.createElement("div");
+    menu.className = "jmsdm-floatmenu jmsdm-plmenu";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", t("addToPlaylistLabel", "Add to playlist"));
+    menu.innerHTML = `
+      <div class="jmsdm-floatmenu-title">${escapeHtml(t("addToPlaylistLabel", "Add to playlist"))}</div>
+      <div class="jmsdm-pllist"><div class="jmsdm-plstate">${escapeHtml(t("loadingLabel", "Loading…"))}</div></div>
+      <div class="jmsdm-floatmenu-sep"></div>
+      <form class="jmsdm-plnew">
+        <label class="jmsdm-floatmenu-title" for="jmsdm-plnew-name">${escapeHtml(t("newPlaylistLabel", "New playlist"))}</label>
+        <div class="jmsdm-plnew-row">
+          <input id="jmsdm-plnew-name" class="jmsdm-plnew-input" type="text" maxlength="200" autocomplete="off" placeholder="${escapeHtml(t("playlistNamePlaceholder", "Playlist name"))}">
+          <button type="submit" class="jmsdm-plnew-create">${escapeHtml(t("createPlaylistLabel", "Create"))}</button>
+        </div>
+      </form>`;
+    return menu;
+  };
+
+  const loadInto = async (menu) => {
+    const list = menu.querySelector(".jmsdm-pllist");
+    try {
+      const uid = userId();
+      const res = await makeApiRequest(`/Users/${encodeURIComponent(uid)}/Items?IncludeItemTypes=Playlist&Recursive=true&SortBy=SortName&SortOrder=Ascending&Fields=ChildCount,MediaType`);
+      const lists = (Array.isArray(res?.Items) ? res.Items : []).filter((p) => safeText(p?.MediaType).toLowerCase() !== "audio");
+      if (!menu.isConnected) return;
+      if (!lists.length) {
+        list.innerHTML = `<div class="jmsdm-plstate">${escapeHtml(t("noPlaylistsYet", "No playlists yet"))}</div>`;
+      } else {
+        list.innerHTML = lists.map((p) => {
+          const n = Number(p?.ChildCount);
+          const count = Number.isFinite(n) ? `${n} ${n === 1 ? t("playlistItemSingular", "item") : t("playlistItemPlural", "items")}` : "";
+          return `<button type="button" role="menuitem" class="jmsdm-plitem" data-id="${escapeHtml(p.Id)}" data-name="${escapeHtml(safeText(p.Name))}"><span class="jmsdm-plitem-name">${escapeHtml(safeText(p.Name))}</span>${count ? `<span class="jmsdm-plitem-count">${escapeHtml(count)}</span>` : ""}</button>`;
+        }).join("");
+      }
+    } catch (err) {
+      console.warn("Add to playlist: playlists could not be loaded", err);
+      if (menu.isConnected) list.innerHTML = `<div class="jmsdm-plstate">${escapeHtml(t("playlistLoadFailed", "Playlists could not be loaded"))}</div>`;
+    }
+    try { menu.__jmsdmPlace?.(); } catch {}
+  };
+
+  const addTo = async (playlistId, playlistName, close) => {
+    try {
+      await makeApiRequest(`/Playlists/${encodeURIComponent(playlistId)}/Items?ids=${encodeURIComponent(item.Id)}&userId=${encodeURIComponent(userId())}`, { method: "POST" });
+      close();
+      notify(t("addedToPlaylist", "Added to {0}").replace("{0}", playlistName));
+    } catch (err) {
+      console.warn("Add to playlist failed", err);
+      notify(t("playlistAddFailed", "Could not add to the playlist"), "error");
+    }
+  };
+
+  const createWith = async (name, close) => {
+    try {
+      const res = await makeApiRequest(`/Playlists`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ Name: name, Ids: [item.Id], UserId: userId(), MediaType: "Video" })
+      });
+      if (!res?.Id) throw new Error("no playlist id");
+      close();
+      notify(t("playlistCreated", "Created {0}").replace("{0}", name));
+    } catch (err) {
+      console.warn("Create playlist failed", err);
+      notify(t("playlistCreateFailed", "Could not create the playlist"), "error");
+    }
+  };
+
+  addEventListener(btn, "click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (btn.getAttribute("aria-expanded") === "true") { closeFloatingMenu(root); return; }
+    const menu = buildMenu();
+    const close = openFloatingMenu(root, btn, menu);
+    menu.addEventListener("click", (ev) => {
+      const it = ev.target.closest(".jmsdm-plitem");
+      if (!it || it.disabled) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      it.disabled = true;
+      addTo(it.dataset.id, it.dataset.name || "", close).finally(() => { it.disabled = false; });
+    });
+    menu.querySelector(".jmsdm-plnew")?.addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const input = menu.querySelector(".jmsdm-plnew-input");
+      const name = safeText(input?.value).trim();
+      if (!name) { input?.focus(); return; }
+      const submit = menu.querySelector(".jmsdm-plnew-create");
+      if (submit) submit.disabled = true;
+      createWith(name, close).finally(() => { if (submit) submit.disabled = false; });
+    });
+    // keys typed into the name field must not reach Jellyfin's or MonWUI's global shortcuts
+    menu.addEventListener("keydown", (ev) => { if (ev.key !== "Escape") ev.stopPropagation(); });
+    loadInto(menu).then(() => {
+      if (!menu.isConnected) return;
+      requestAnimationFrame(() => { try { (menu.querySelector(".jmsdm-plitem") || menu.querySelector(".jmsdm-plnew-input"))?.focus(); } catch {} });
+    });
+  });
 }
 
 function renderPreviewStats(stats = []) {
@@ -3030,6 +3340,7 @@ function forceHideHoverOverlays() {
 }
 
 export async function closeDetailsModal() {
+  try { closeFloatingMenu(document.getElementById(MODAL_ID)); } catch {}
   if (!_open || _closing) return;
   _closing = true;
 
@@ -3940,6 +4251,10 @@ export async function openDetailsModal({ itemId, item: preloadedItem = null, det
   const subtitleTracks = isBoxSet
     ? []
     : getMediaStreamsByType(mediaSource, "Subtitle").map(formatSubtitleStream).filter(Boolean).slice(0, 4);
+  // Fork Zigerus (4.0.0.78): track pickers only for the item Play Now actually plays
+  const trackPickers = (isBoxSet || isTrailerItem || safeText(mediaSource?.Id) !== safeText(baseItem?.Id))
+    ? null
+    : buildTrackPickerState(mediaSource);
   const seasonEpisodeText = (() => {
     if (!isEpisode) return "";
     const seasonNumber = Number(baseItem?.ParentIndexNumber || 0);
@@ -4313,6 +4628,9 @@ wireMiniCardDelegation();
       <button type="button" class="jmsdm-btn jmsdm-openpage">
         ${icon("M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z")} ${config.languageLabels.goToPageLabel || "Sayfaya Git"}
       </button>
+      <button type="button" class="jmsdm-btn jmsdm-addplaylist" aria-haspopup="menu" aria-expanded="false">
+        ${icon("M14 10H3v2h11v-2zm0-4H3v2h11V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM3 16h7v-2H3v2z")} ${label("addToPlaylistLabel", "Add to playlist")}
+      </button>
       <button class="jmsdm-btn jmsdm-fav" aria-pressed="${isFavorite ? "true" : "false"}">
         ${icon(isFavorite ? "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" : "M12.1 18.55l-.1.1-.11-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5 18.5 5 20 6.5 20 8.5c0 2.89-3.14 5.74-7.9 10.05z")}
         ${getWatchlistButtonText(baseItem, isFavorite)}
@@ -4361,6 +4679,7 @@ wireMiniCardDelegation();
                   <div class="jmsdm-actions">
                     ${actionButtonsHtml}
                   </div>
+                  ${renderTrackPickersHtml(trackPickers)}
 
                   <div class="jmsdm-overview">${overview}</div>
                   ${renderPreviewStats(stats)}
@@ -4437,6 +4756,9 @@ wireMiniCardDelegation();
   const favBtn  = root.querySelector(".jmsdm-fav");
   const shareBtn = root.querySelector(".jmsdm-share");
   const watchlistBtn = root.querySelector(".jmsdm-watchlist-open");
+  const addPlaylistBtn = root.querySelector(".jmsdm-addplaylist");
+  wireTrackPickers(root, trackPickers);
+  wireAddToPlaylist(root, addPlaylistBtn, baseItem);
   const initialResumeTicks = isTrailerItem ? 0 : getResumeTicksFromItem(baseItem);
 
   if (!isTrailerItem) {
@@ -4477,7 +4799,16 @@ wireMiniCardDelegation();
         await startHeroTrailer(root, displayItem, { signal: _abort.signal });
         return;
       }
-      const started = await playNow(baseItem.Id);
+      // Fork Zigerus (4.0.0.78): pass only the tracks the user changed. The pickers open on Jellyfin's own
+      // choice, so an untouched picker means "as Jellyfin would" and Play Now keeps its usual start path.
+      const audioChanged = !!trackPickers?.audio && trackPickers.audioIndex !== trackPickers.initialAudioIndex;
+      const subChanged = !!trackPickers?.subs && trackPickers.subIndex !== trackPickers.initialSubIndex;
+      const trackOptions = (audioChanged || subChanged) ? {
+        mediaSourceId: trackPickers.mediaSourceId,
+        audioStreamIndex: audioChanged ? trackPickers.audioIndex : undefined,
+        subtitleStreamIndex: subChanged ? trackPickers.subIndex : undefined
+      } : undefined;
+      const started = await playNow(baseItem.Id, trackOptions);
       if (!started) return;
       await closeDetailsModal();
       notifyDetailsModalPlay(baseItem.Id);

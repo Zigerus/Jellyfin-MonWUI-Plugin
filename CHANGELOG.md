@@ -5,6 +5,12 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.78 (Zigerus build, Jellyfin 12)
+
+### New in the details popup
+- **Choose the audio track and subtitles before you press Play.** When a film or episode has more than one audio track, an Audio dropdown sits under the buttons; when it has subtitles, a Subtitles dropdown (with Off) sits next to it. Each opens on the track Jellyfin would pick for you (your language settings, or the tracks you chose last time for this title), and Play Now plays what you chose. Items with one audio track and no subtitles look as before.
+- **Add to playlist**, next to Go to Page: lists your Jellyfin playlists (audio-only playlists are left out) and can create a new playlist with the title in it.
+
 ## 4.0.0.77 (Zigerus build, Jellyfin 12)
 
 ### Fixes
