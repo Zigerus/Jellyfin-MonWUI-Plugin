@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.76",
+        "changelog": "### Fixes\n- **The player header shows the title you are watching, not the previous one.** When a video streams without its item id in the URL (an HLS stream while transcoding), the header's logo, star rating, tomato score and age rating came from the first favourite button in the page. Jellyfin keeps earlier pages hidden in the page, so that could be the previous title's player or item page; it showed most often after starting something from the MonWUI popup on the home page. The header now only reads a page that is showing, the player page first. When it falls back to the server's session list, it prefers this browser's own session over another device's.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.76/JMSFusion_4.0.0.76_12.0.0.zip",
+        "checksum": "9F9CE465545C2816B0C7F678CEBD7B42",
+        "timestamp": "2026-11-05T02:08:15"
+      },
+      {
         "version": "4.0.0.75",
         "changelog": "### Faster on TVs\n- **TV web browsers no longer load any part of MonWUI.** With \"Disable MonWUI for TV web clients\" on, TVs used to get the full MonWUI page header (an import map, about 96 module preloads and the boot scripts) and then download each file empty. That was about 100 extra requests on every page load. TVs now get Jellyfin's page with the MonWUI block removed, plus the small remote-focus helper written inline. On a TV-speed test the home page shows its first card in half the time (2.5 s to 1.2 s) with half the requests. Desktop and phone browsers are unchanged.",
         "targetAbi": "12.0.0.0",
