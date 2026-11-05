@@ -925,12 +925,33 @@ function getItemIdFromDom() {
     ".btnUserRating[data-id]",
   ];
 
+  // Zigerus fork: jellyfin-web keeps earlier pages (the previous title's player page and item page)
+  // in the document, hidden. When the stream URL carries no item id (an HLS blob: URL while
+  // transcoding), the first match anywhere could be the previous title, so the header showed its
+  // logo and ratings. Only read buttons on a page that is showing, the player page first.
+  const pageOf = (el) => el.closest(".page, [data-role='page']");
+  const pageShowing = (page) => !page || (!page.classList.contains("hide") && !page.hidden);
+  const isPlayerPage = (page) => !!page && /videoOsd/i.test(`${page.id} ${page.className}`);
+  const candidates = [];
   for (const selector of selectors) {
-    const el = document.querySelector(selector);
-    const id = String(el?.getAttribute?.("data-id") || "").trim();
-    if (id) return id;
+    for (const el of document.querySelectorAll(selector)) {
+      const id = String(el?.getAttribute?.("data-id") || "").trim();
+      const page = pageOf(el);
+      if (id && pageShowing(page)) candidates.push({ id, player: isPlayerPage(page) });
+    }
   }
-  return null;
+  const pick = candidates.find((c) => c.player) || candidates[0];
+  return pick ? pick.id : null;
+}
+
+function getOwnDeviceId() {
+  try {
+    const api = window.ApiClient;
+    const id = typeof api?.deviceId === "function" ? api.deviceId() : api?._deviceId;
+    return String(id || "").trim();
+  } catch {
+    return "";
+  }
 }
 
 function parsePlayableIdFromVideo(videoEl) {
@@ -1056,6 +1077,12 @@ function pickBestNowPlayingSession(sessions, userId) {
     return !!x.NowPlayingItem;
   });
   if (!candidates.length) return null;
+
+  // Zigerus fork: the user may be playing something on another device too (the TV); this
+  // browser's own session is the one whose title belongs in this header.
+  const ownDeviceId = getOwnDeviceId();
+  const own = ownDeviceId && candidates.find((sess) => String(sess.DeviceId || "") === ownDeviceId);
+  if (own) return own;
 
   const score = (sess) => {
     const last = Date.parse(sess.LastActivityDate || "") || 0;

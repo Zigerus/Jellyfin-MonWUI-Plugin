@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.76 (Zigerus build, Jellyfin 12)
+
+### Fixes
+- **The player header shows the title you are watching, not the previous one.** When a video streams without its item id in the URL (an HLS stream while transcoding), the header's logo, star rating, tomato score and age rating came from the first favourite button in the page. Jellyfin keeps earlier pages hidden in the page, so that could be the previous title's player or item page; it showed most often after starting something from the MonWUI popup on the home page. The header now only reads a page that is showing, the player page first. When it falls back to the server's session list, it prefers this browser's own session over another device's.
+
 ## 4.0.0.75 (Zigerus build, Jellyfin 12)
 
 ### Faster on TVs
