@@ -3057,6 +3057,20 @@ export async function playNow(itemId, trackOptions = null) {
   }
 }
 
+// Fork Zigerus (4.0.0.83): the preview of a series plays the episode you would play next (resume > first unwatched >
+// first), never a random one, and never a missing ("virtual") episode, which has no media and left the preview empty.
+async function getPreviewEpisodeId(seriesId, seasonId = null) {
+  const { userId } = getSessionInfo();
+  const q = `UserId=${encodeURIComponent(userId)}&Fields=UserData,IndexNumber,ParentIndexNumber,LocationType&Limit=10000`;
+  const resp = await makeApiRequest(`/Shows/${seriesId}/Episodes?${seasonId ? `SeasonId=${encodeURIComponent(seasonId)}&` : ""}${q}`);
+  const real = sortEpisodes((resp?.Items || []).filter((e) => e?.Id && e.LocationType !== "Virtual" && !e.IsVirtualItem));
+  if (!real.length) return null;
+  const partial = real.find((e) => e?.UserData?.PlaybackPositionTicks > 0 && !e?.UserData?.Played);
+  if (partial) return partial.Id;
+  const firstUnplayed = real.find((e) => !e?.UserData?.Played);
+  return (firstUnplayed || real[0]).Id;
+}
+
 async function getRandomEpisodeId(seriesId) {
   const { userId } = getSessionInfo();
   const response = await makeApiRequest(
@@ -3109,17 +3123,15 @@ export async function getVideoStreamUrl(
       return null;
     }
     if (item.Type === "Series") {
-      itemId = await getRandomEpisodeId(itemId).catch(() => null);
+      itemId = await getPreviewEpisodeId(itemId).catch(() => null);
       if (!itemId) return null;
       item = await fetchItemDetails(itemId, { signal });
       if (!item) return null;
     }
 
     if (item.Type === "Season") {
-      const episodes = await makeApiRequest(`/Shows/${item.SeriesId}/Episodes?SeasonId=${itemId}&Fields=Id`, { signal });
-      if (!episodes?.Items?.length) throw new Error("Bu sezonda hiç bölüm yok!");
-      const episode = episodes.Items[Math.floor(Math.random() * episodes.Items.length)];
-      itemId = episode.Id;
+      itemId = await getPreviewEpisodeId(item.SeriesId, itemId).catch(() => null);
+      if (!itemId) return null;
       item = await fetchItemDetails(itemId, { signal });
       if (!item || isLiveTvPlaybackItem(item)) return null;
     }

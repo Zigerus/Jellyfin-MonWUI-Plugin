@@ -5,6 +5,13 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.83 (Zigerus build, Jellyfin 12)
+
+### Fixes
+- **Plugin settings can be saved again.** The settings page loaded and saved the configuration without sending the user's token, so the server answered "401 Authentication required" to every Save (and to the Env panel); the page's own token helper was only used for publishing user settings. Every call from the settings page now carries the token (falling back to the token jellyfin-web keeps in local storage when the dashboard does not expose `ApiClient`).
+- **A title with nothing to preview keeps its hover card.** When a card had no trailer and no playable video (a series that has only missing or not-yet-downloaded episodes, or trailer-only mode on a title without a trailer), the preview closed the card right after opening it, so it looked as if the hover did not work. The card now stays, with its backdrop, details and buttons and a "trailer not available" note; an error while resolving the preview no longer takes an opened card away either.
+- **A series preview plays the episode you would play next**, not a random one: the one you are part-way through, else the first unwatched, else the first. Missing ("virtual") episodes, which have no media, are never picked; they were, and left the preview empty.
+
 ## 4.0.0.82 (Zigerus build, Jellyfin 12)
 
 ### Fixes

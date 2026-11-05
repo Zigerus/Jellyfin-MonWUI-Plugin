@@ -417,7 +417,8 @@
   }
 
   async function loadConfig(view) {
-    const r = await fetch(api("Configuration"));
+    // Fork Zigerus (4.0.0.83): with the token the admin gets the full configuration; without it the save was refused (401)
+    const r = await fetch(api("Configuration"), { headers: { Accept: "application/json", ...authHeaders() } });
     if (!r.ok) throw new Error("Failed to load config: " + r.status);
     const cfg = await r.json();
     view.__physicalPatchFallbackEnabled = !!cfg.enablePhysicalIndexHtmlPatchFallback;
@@ -435,7 +436,7 @@
   async function postConfiguration(body) {
     const r = await fetch(api("Configuration"), {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json", ...authHeaders() },
       body: JSON.stringify(body)
     });
 
@@ -455,7 +456,7 @@
   }
 
   async function getStatus() {
-    const r = await fetch(api("Status"));
+    const r = await fetch(api("Status"), { headers: authHeaders() });
     if (!r.ok) throw new Error("Failed to get status: " + r.status);
     return await r.json();
   }
@@ -525,7 +526,7 @@
   }
 
   async function showSnippet(view) {
-    const r = await fetch(api("Snippet"));
+    const r = await fetch(api("Snippet"), { headers: authHeaders() });
     if (!r.ok) throw new Error("Failed to get snippet: " + r.status);
     const html = await r.text();
     const box = view.querySelector("#snippet");
@@ -537,7 +538,7 @@
   }
 
   async function getEnv() {
-    const r = await fetch(api("Env"));
+    const r = await fetch(api("Env"), { headers: authHeaders() });
     if (!r.ok) throw new Error("Failed to get env: " + r.status);
     return await r.json();
   }
@@ -713,7 +714,7 @@
 
   async function doPatch(view, kind) {
     const ep = kind === "patch" ? "Patch" : "Unpatch";
-    const r = await fetch(api(ep), { method: "POST" });
+    const r = await fetch(api(ep), { method: "POST", headers: authHeaders() });
     if (!r.ok) throw new Error(`${ep} failed: ` + r.status);
 
     showMessage(
@@ -730,10 +731,15 @@
 
   function authHeaders() {
     try {
-      const token =
+      let token =
         window.ApiClient?.accessToken?.() ||
         window.ApiClient?._accessToken ||
         window.ApiClient?._authToken;
+      if (!token) {
+        // Fork Zigerus (4.0.0.83): the dashboard page may not expose ApiClient; jellyfin-web keeps the token here
+        const creds = JSON.parse(localStorage.getItem("jellyfin_credentials") || "{}");
+        token = (creds.Servers || []).map((x) => x && x.AccessToken).find(Boolean);
+      }
       if (token) return { "X-Emby-Token": token };
     } catch {}
     return {};

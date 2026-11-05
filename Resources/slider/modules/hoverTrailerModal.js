@@ -3464,7 +3464,13 @@ export function setupHoverForAllItems() {
         } catch (error) {
           if (error.name !== 'AbortError') {
             console.error('Öğe hover hatası:', error);
-            if (modalState.videoModal) modalState.videoModal.style.display = 'none';
+            const m = modalState.videoModal;
+            // Fork Zigerus (4.0.0.83): a card that is already open stays open with a note instead of vanishing
+            if (m && m.classList.contains('video-preview-modal--visible')) {
+              try { showNoTrailerMessage(m, getConfig()?.languageLabels?.trailerNotAvailable || 'Fragman bulunamadı'); } catch {}
+            } else if (m) {
+              m.style.display = 'none';
+            }
           }
         }
       });
@@ -3975,14 +3981,17 @@ export async function openPreviewModalForItem(itemId, anchorEl, opts = {}) {
     const hasVideo  = !!(modalState.modalVideo && modalState.modalVideo.style.display !== 'none');
     const hasPlayable = hasIframe || hasVideo;
     if (!hasPlayable) {
-      closeVideoModal();
-      return false;
+      // Fork Zigerus (4.0.0.83): a title with nothing to preview (no trailer, no playable episode: an empty or
+      // not-yet-downloaded series) keeps its card, with backdrop, details and buttons, instead of closing it
+      showNoTrailerMessage(modal, getConfig()?.languageLabels?.trailerNotAvailable || 'Fragman bulunamadı');
     }
     return true;
   } catch (e) {
     console.error('openPreviewModalForItem hatası:', e);
     if (openedModal) {
-      try { closeVideoModal(); } catch {}
+      // Fork Zigerus (4.0.0.83): an error while resolving the preview no longer takes the opened card away
+      try { showNoTrailerMessage(modal, getConfig()?.languageLabels?.trailerNotAvailable || 'Fragman bulunamadı'); } catch {}
+      return true;
     }
     return false;
   }
