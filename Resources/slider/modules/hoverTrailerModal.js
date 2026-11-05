@@ -1104,8 +1104,10 @@ export function createVideoModal({ showButtons = true, context = 'monwui-dot' } 
 
     video.src = url;
     applyPreviewTrailerAudioToVideo(video, { config: getConfig(), soundOn: modalState._soundOn });
+    // Fork Zigerus (4.0.0.80): a transcoded preview (#jms-server-start) already starts where it should and cannot seek
+    const serverStart = /#jms-server-start$/.test(String(url));
     video.addEventListener('loadedmetadata', () => {
-      video.currentTime = 10 * 60;
+      if (!serverStart) video.currentTime = 10 * 60;
       Promise.resolve(video.play()).catch(e => { if (e.name !== 'AbortError') console.warn('Video oynatma hatası:', e); });
     }, { once: true });
   };
@@ -3702,7 +3704,7 @@ function startVideoPlayback(url) {
     v.pause();
     v.src = url;
     v.load();
-    v.onloadedmetadata = () => { v.currentTime = 600; v.play().catch(()=>{}); };
+    v.onloadedmetadata = () => { if (!/#jms-server-start$/.test(String(url))) v.currentTime = 600; v.play().catch(()=>{}); };
   } catch {}
 }
 

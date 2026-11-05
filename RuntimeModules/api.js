@@ -3240,6 +3240,45 @@ export async function getVideoStreamUrl(
       }
     }
 
+    // Fork Zigerus (4.0.0.80): Static=true sends the original file untouched (the codec parameters below are then
+    // ignored). Browsers cannot decode AC3/E-AC3/DTS/TrueHD, so such films previewed with picture and no sound.
+    // When the track that would play is not browser-safe, ask Jellyfin for a real stream instead: that track as
+    // stereo AAC, H.264 video copied as it is (anything else scaled to the preview height), starting server-side
+    // at the point the hover would have seeked to (a transcoded stream cannot be seeked from the browser).
+    const SAFE_PREVIEW_AUDIO = new Set(["aac", "mp3", "opus", "vorbis", "flac"]);
+    const audioTracks = streams.filter((s) => s.Type === "Audio");
+    const defaultAudioIndex = Number.isInteger(videoSource.DefaultAudioStreamIndex)
+      ? videoSource.DefaultAudioStreamIndex
+      : (audioTracks.find((s) => s.IsDefault) || audioTracks[0] || {}).Index;
+    const previewAudio = audioTracks.find((s) => s.Index === (audioLanguage ? audioStreamIndex : defaultAudioIndex)) || audioTracks[0] || null;
+    if (!forceDirectPlay && previewAudio && !SAFE_PREVIEW_AUDIO.has(String(previewAudio.Codec || "").toLowerCase())) {
+      const videoTrack = streams.find((s) => s.Type === "Video");
+      const copyVideo = String(videoTrack?.Codec || "").toLowerCase() === "h264";
+      const runtimeTicks = Number(item?.RunTimeTicks || videoSource.RunTimeTicks || 0);
+      const tenMinutes = 600 * 10000000;
+      const serverStart = startTimeTicks > 0
+        ? startTimeTicks
+        : (runtimeTicks > tenMinutes * 2 ? tenMinutes : Math.floor(runtimeTicks * 0.2));
+      const transcodeParams = {
+        Static: false,
+        MediaSourceId: videoSource.Id,
+        DeviceId: deviceId,
+        ApiKey: accessToken,
+        PlaySessionId: `jmspreview${Date.now().toString(36)}`,
+        VideoCodec: "h264",
+        AllowVideoStreamCopy: copyVideo,
+        MaxHeight: copyVideo ? undefined : maxHeight,
+        VideoBitrate: copyVideo ? undefined : 1500000,
+        AudioCodec: "aac",
+        AllowAudioStreamCopy: false,
+        AudioStreamIndex: previewAudio.Index,
+        AudioChannels: 2,
+        AudioBitrate: 160000,
+        StartTimeTicks: serverStart
+      };
+      // the hash tells the hover player not to seek: the server already started where it should
+      return withServer(`/Videos/${itemId}/stream.mp4?${buildQueryParams(transcodeParams)}#jms-server-start`);
+    }
     const hasHdr = streams.some((s) => s.Type === "Video" && s.VideoRangeType === "HDR");
     const hasDovi = streams.some((s) => s.Type === "Video" && s.VideoRangeType === "DOVI");
 

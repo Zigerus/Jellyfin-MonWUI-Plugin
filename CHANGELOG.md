@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.80 (Zigerus build, Jellyfin 12)
+
+### Fixes
+- **Card hover previews have sound for films with AC3, E-AC3, DTS or TrueHD audio.** When a title has no trailer, the hover plays the film itself, and it asked Jellyfin for the original file untouched; browsers cannot decode those audio formats, so the picture played with no sound. When the track that would play is not browser-safe, the preview now asks for that track as stereo AAC (H.264 video is copied as it is, anything else is scaled down to the preview size) and starts where the preview always started. Films with AAC, MP3, Opus, Vorbis or FLAC audio still play the original file, at no cost to the server.
+
 ## 4.0.0.79 (Zigerus build, Jellyfin 12)
 
 ### Fixes
