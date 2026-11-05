@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.83",
+        "changelog": "### Fixes\n- **Plugin settings can be saved again.** The settings page loaded and saved the configuration without sending the user's token, so the server answered \"401 Authentication required\" to every Save (and to the Env panel); the page's own token helper was only used for publishing user settings. Every call from the settings page now carries the token (falling back to the token jellyfin-web keeps in local storage when the dashboard does not expose `ApiClient`).\n- **A title with nothing to preview keeps its hover card.** When a card had no trailer and no playable video (a series that has only missing or not-yet-downloaded episodes, or trailer-only mode on a title without a trailer), the preview closed the card right after opening it, so it looked as if the hover did not work. The card now stays, with its backdrop, details and buttons and a \"trailer not available\" note; an error while resolving the preview no longer takes an opened card away either.\n- **A series preview plays the episode you would play next**, not a random one: the one you are part-way through, else the first unwatched, else the first. Missing (\"virtual\") episodes, which have no media, are never picked; they were, and left the preview empty.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.83/JMSFusion_4.0.0.83_12.0.0.zip",
+        "checksum": "7563474209F9229D3A0B3C5F613D7D49",
+        "timestamp": "2026-11-05T10:32:14"
+      },
+      {
         "version": "4.0.0.82",
         "changelog": "### Fixes\n- **A slow-starting YouTube preview is no longer muted by mistake.** 4.0.0.81's sound check gave the player 0.7 s after it reported ready before treating it as blocked by the browser and muting it until the next click; a normal start took up to 0.6 s on the bench, so a slightly slow one would have lost its sound. The check now waits up to 3.5 s while the player is still starting, and only acts when it is paused or still muted after that.",
         "targetAbi": "12.0.0.0",
