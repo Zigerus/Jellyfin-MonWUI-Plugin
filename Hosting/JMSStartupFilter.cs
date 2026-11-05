@@ -175,7 +175,7 @@ namespace Jellyfin.Plugin.JMSFusion
             };
         }
 
-        private static bool IsIndexRequest(PathString path)
+        internal static bool IsIndexRequest(PathString path)
         {
             var p = (path.Value ?? string.Empty).ToLowerInvariant();
             return p.EndsWith("/web") ||

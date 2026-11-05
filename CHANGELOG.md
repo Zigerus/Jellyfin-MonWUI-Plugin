@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.75 (Zigerus build, Jellyfin 12)
+
+### Faster on TVs
+- **TV web browsers no longer load any part of MonWUI.** With "Disable MonWUI for TV web clients" on, TVs used to get the full MonWUI page header (an import map, about 96 module preloads and the boot scripts) and then download each file empty. That was about 100 extra requests on every page load. TVs now get Jellyfin's page with the MonWUI block removed, plus the small remote-focus helper written inline. On a TV-speed test the home page shows its first card in half the time (2.5 s to 1.2 s) with half the requests. Desktop and phone browsers are unchanged.
+
 ## 4.0.0.74 (Zigerus build, Jellyfin 12)
 
 ### Fixes
