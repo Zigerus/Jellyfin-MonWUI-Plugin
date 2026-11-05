@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.78",
+        "changelog": "### New in the details popup\n- **Choose the audio track and subtitles before you press Play.** When a film or episode has more than one audio track, an Audio dropdown sits under the buttons; when it has subtitles, a Subtitles dropdown (with Off) sits next to it. Each opens on the track Jellyfin would pick for you (your language settings, or the tracks you chose last time for this title), and Play Now plays what you chose. Items with one audio track and no subtitles look as before.\n- **Add to playlist**, next to Go to Page: lists your Jellyfin playlists (audio-only playlists are left out) and can create a new playlist with the title in it.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.78/JMSFusion_4.0.0.78_12.0.0.zip",
+        "checksum": "09AC62E8DC61147EFC38C0E8598C1730",
+        "timestamp": "2026-11-05T04:20:39"
+      },
+      {
         "version": "4.0.0.77",
         "changelog": "### Fixes\n- **Hero backdrops appear as soon as the slider rotates on its own.** With slide animations on, a slide change hides the incoming backdrop and waits for its image to load before fading it in. The next slides' images are preloaded in the background, so they had already loaded and nothing faded them in: the backdrop stayed invisible until the mouse moved over the hero or the slider moved on. A backdrop that is already loaded now fades in straight away.",
         "targetAbi": "12.0.0.0",
