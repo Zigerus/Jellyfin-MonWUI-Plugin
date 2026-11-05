@@ -189,6 +189,16 @@ function hydrateBackdrop(img, { lqSrc, hqSrc, hqSrcset = '', fallback = '', eage
     const data = img.__bgData || {};
     if (!data.hqSrc || !img.isConnected) return;
     if (img.__phase === 'hi' && img.__hiRequested && (!data.hqSrcset || img.srcset === data.hqSrcset) && img.src === data.hqSrc) {
+      // Zigerus fork: a slide change hides the incoming backdrop (opacity 0) and relies on the image's
+      // load event to fade it back in. A neighbour preloaded in the background already fired that
+      // event, so on auto-rotation the backdrop stayed invisible until a mouse move re-showed it.
+      if (img.complete && img.naturalWidth > 0) {
+        requestAnimationFrame(() => {
+          if (!img.isConnected) return;
+          img.classList.remove('is-lqip', 'is-hi-pending');
+          img.style.opacity = '1';
+        });
+      }
       return;
     }
     img.__clearPeakHiTimer?.();

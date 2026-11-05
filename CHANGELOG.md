@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.77 (Zigerus build, Jellyfin 12)
+
+### Fixes
+- **Hero backdrops appear as soon as the slider rotates on its own.** With slide animations on, a slide change hides the incoming backdrop and waits for its image to load before fading it in. The next slides' images are preloaded in the background, so they had already loaded and nothing faded them in: the backdrop stayed invisible until the mouse moved over the hero or the slider moved on. A backdrop that is already loaded now fades in straight away.
+
 ## 4.0.0.76 (Zigerus build, Jellyfin 12)
 
 ### Fixes
