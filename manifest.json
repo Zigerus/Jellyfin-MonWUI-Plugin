@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.81",
+        "changelog": "### Fixes\n- **YouTube trailer previews start on a freshly loaded page.** Browsers only allow autoplay with sound once you have clicked or typed somewhere on the page; before that, a YouTube embed asked to start unmuted just showed its play button, so after a reload every hover preview waited for one click. With the sound setting on, such a preview now starts muted and is unmuted the moment the browser allows it: at once when it does, otherwise on your first click or key anywhere. The same fallback covers the film-itself preview, whose `play()` a browser can refuse in the same situation.\n- **A closed preview can no longer block its card.** A theme rule that forces the preview's display (the Lumen theme's card rule did) kept the closed preview in the page, invisible, on top of the poster it had opened from, so that card could not be hovered or clicked again until another preview opened. The closed preview now ignores the pointer whatever the theme does; Lumen also fixes its rule.\n- **The hero no longer moves the page when its slideshow starts over.** When the last slide finished and the hero rebuilt itself for a new round, the page was scrolled back to the top and, during the rebuild, the rows jumped by the hero's height. Rebuilding now keeps your scroll position and holds the hero's place.\n- **Lighter previews for very high-bitrate films.** The preview of a film with AC3/E-AC3/DTS/TrueHD audio copied H.264 video as it is; for a Blu-ray remux that meant streaming 25 Mbit/s (and writing about 1 GB to the transcode cache in ten seconds) for a thumbnail-sized preview. Video above 8 Mbit/s is now scaled to the preview size instead.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.81/JMSFusion_4.0.0.81_12.0.0.zip",
+        "checksum": "8FC6377DA0EBE967AFACDEC0DAE00116",
+        "timestamp": "2026-11-05T09:01:47"
+      },
+      {
         "version": "4.0.0.80",
         "changelog": "### Fixes\n- **Card hover previews have sound for films with AC3, E-AC3, DTS or TrueHD audio.** When a title has no trailer, the hover plays the film itself, and it asked Jellyfin for the original file untouched; browsers cannot decode those audio formats, so the picture played with no sound. When the track that would play is not browser-safe, the preview now asks for that track as stereo AAC (H.264 video is copied as it is, anything else is scaled down to the preview size) and starts where the preview always started. Films with AAC, MP3, Opus, Vorbis or FLAC audio still play the original file, at no cost to the server.",
         "targetAbi": "12.0.0.0",
