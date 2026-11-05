@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.77",
+        "changelog": "### Fixes\n- **Hero backdrops appear as soon as the slider rotates on its own.** With slide animations on, a slide change hides the incoming backdrop and waits for its image to load before fading it in. The next slides' images are preloaded in the background, so they had already loaded and nothing faded them in: the backdrop stayed invisible until the mouse moved over the hero or the slider moved on. A backdrop that is already loaded now fades in straight away.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.77/JMSFusion_4.0.0.77_12.0.0.zip",
+        "checksum": "60DB7F4CB04179FD9A99E77259C823AA",
+        "timestamp": "2026-11-05T02:32:14"
+      },
+      {
         "version": "4.0.0.76",
         "changelog": "### Fixes\n- **The player header shows the title you are watching, not the previous one.** When a video streams without its item id in the URL (an HLS stream while transcoding), the header's logo, star rating, tomato score and age rating came from the first favourite button in the page. Jellyfin keeps earlier pages hidden in the page, so that could be the previous title's player or item page; it showed most often after starting something from the MonWUI popup on the home page. The header now only reads a page that is showing, the player page first. When it falls back to the server's session list, it prefers this browser's own session over another device's.",
         "targetAbi": "12.0.0.0",
