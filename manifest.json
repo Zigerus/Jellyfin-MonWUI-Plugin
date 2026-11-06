@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.85",
+        "changelog": "### Features\n- **A settings gear in the header, next to the notifications bell.** The gear that opens MonWUI's settings lived only in the hero's provider strip, so a theme that hides that strip, or any page without the slider, left the F2 hotkey as the only way in. The header button mounts the way the bell does (MUI and legacy headers), follows the \"Show settings link\" option, and opens the MonWUI tab. F2 still works.\n\n### Fixes\n- **The About tab shows the installed version.** `config.version` was the constant \"v4.0.0.7\" inherited from ParticularFlix, so About and the update check reported 4.0.0.7 whatever was installed. The version now comes from the `?v=` stamp the plugin puts on its own module URLs.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.85/JMSFusion_4.0.0.85_12.0.0.zip",
+        "checksum": "BBE186EBAAE113857D3BC5C21C2BD557",
+        "timestamp": "2026-11-06T05:55:34"
+      },
+      {
         "version": "4.0.0.84",
         "changelog": "### Features\n- **A fallback clip when a card has nothing to preview.** Drop `preview-fallback.mp4` (card-shaped, 2:3) and optionally `preview-fallback-wide.mp4` (16:9) into the plugin's `custom` folder and the hover preview plays that clip, looping and muted with no speaker button, whenever a title has no trailer and no playable video (an empty or not-yet-downloaded series, trailer-only mode on a title without a trailer) and whenever a YouTube embed reports an error (removed, private, embedding off, region-locked). Without the files the \"trailer not available\" note shows as before. The custom folder now serves `.mp4`/`.webm` (never injected), answers `HEAD`, and honours `Range` requests for videos.",
         "targetAbi": "12.0.0.0",
