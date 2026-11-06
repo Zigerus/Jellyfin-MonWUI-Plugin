@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.87",
+        "changelog": "### Changes\n- **English label \"Certification\" is now \"Rating\"** (`showOfficialRating`): the pause screen row, the parental-PIN card and the two settings checkboxes that show the official rating (R, PG-13…). US usage is \"what is it rated\"; other languages are untouched.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.87/JMSFusion_4.0.0.87_12.0.0.zip",
+        "checksum": "51AE179DCC4513CDABD080D1913E9F9D",
+        "timestamp": "2026-11-06T08:45:03"
+      },
+      {
         "version": "4.0.0.86",
         "changelog": "### Fixes\n- **The pause screen's row icons can be themed away.** Each metadata row label starts with an emoji (\"📅 Year\"); it is now wrapped in `<i class=\"pause-row-icon\" aria-hidden=\"true\">` so a theme can hide the glyph while keeping the text; the progress strip's \"⏳ Remaining\" label gets the same wrapper. Nothing changes without such a theme.",
         "targetAbi": "12.0.0.0",
