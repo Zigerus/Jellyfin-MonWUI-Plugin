@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.86",
+        "changelog": "### Fixes\n- **The pause screen's row icons can be themed away.** Each metadata row label starts with an emoji (\"📅 Year\"); it is now wrapped in `<i class=\"pause-row-icon\" aria-hidden=\"true\">` so a theme can hide the glyph while keeping the text; the progress strip's \"⏳ Remaining\" label gets the same wrapper. Nothing changes without such a theme.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.86/JMSFusion_4.0.0.86_12.0.0.zip",
+        "checksum": "FC0D10F4576BA262EAFAAF1626E0795C",
+        "timestamp": "2026-11-06T08:22:05"
+      },
+      {
         "version": "4.0.0.85",
         "changelog": "### Features\n- **A settings gear in the header, next to the notifications bell.** The gear that opens MonWUI's settings lived only in the hero's provider strip, so a theme that hides that strip, or any page without the slider, left the F2 hotkey as the only way in. The header button mounts the way the bell does (MUI and legacy headers), follows the \"Show settings link\" option, and opens the MonWUI tab. F2 still works.\n\n### Fixes\n- **The About tab shows the installed version.** `config.version` was the constant \"v4.0.0.7\" inherited from ParticularFlix, so About and the update check reported 4.0.0.7 whatever was installed. The version now comes from the `?v=` stamp the plugin puts on its own module URLs.",
         "targetAbi": "12.0.0.0",
