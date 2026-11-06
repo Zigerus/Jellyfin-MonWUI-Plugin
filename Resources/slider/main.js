@@ -197,6 +197,24 @@ function bootNotificationsOnce() {
     });
 }
 
+let __settingsHeaderButtonPromise = null;
+function bootSettingsHeaderButtonOnce() {
+  if (window.__jmsSettingsHeaderButtonBooted) return;
+  window.__jmsSettingsHeaderButtonBooted = true;
+  if (!__settingsHeaderButtonPromise) {
+    __settingsHeaderButtonPromise = import("./modules/settingsHeaderButton.js").catch((error) => {
+      __settingsHeaderButtonPromise = null;
+      throw error;
+    });
+  }
+  void __settingsHeaderButtonPromise
+    .then((mod) => mod?.initSettingsHeaderButton?.())
+    .catch((error) => {
+      window.__jmsSettingsHeaderButtonBooted = false;
+      console.warn("initSettingsHeaderButton failed:", error);
+    });
+}
+
 function bootSerrIntegrationOnce() {
   const liveCfg = getMainConfig();
   if (liveCfg.enableSerrArrIntegrationModule === false) {
@@ -4077,6 +4095,7 @@ function runNonCriticalUiBootOnce() {
             window.cleanupQualityBadges = initializeQualityBadges();
           }
         },
+        () => { bootSettingsHeaderButtonOnce(); },
         () => { bootSerrIntegrationOnce(); }
       ];
       for (const step of steps) {

@@ -5,6 +5,14 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.85 (Zigerus build, Jellyfin 12)
+
+### Features
+- **A settings gear in the header, next to the notifications bell.** The gear that opens MonWUI's settings lived only in the hero's provider strip, so a theme that hides that strip, or any page without the slider, left the F2 hotkey as the only way in. The header button mounts the way the bell does (MUI and legacy headers), follows the "Show settings link" option, and opens the MonWUI tab. F2 still works.
+
+### Fixes
+- **The About tab shows the installed version.** `config.version` was the constant "v4.0.0.7" inherited from ParticularFlix, so About and the update check reported 4.0.0.7 whatever was installed. The version now comes from the `?v=` stamp the plugin puts on its own module URLs.
+
 ## 4.0.0.84 (Zigerus build, Jellyfin 12)
 
 ### Features

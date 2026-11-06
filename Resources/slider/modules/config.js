@@ -541,6 +541,18 @@ function isSameConfigCacheKey(a, b) {
     a.admin === b.admin;
 }
 
+// The installed plugin version, read from the ?v= stamp the server puts on its own module
+// URLs (ModuleHints: <version>-<hash>), so About and the update check never show a stale constant.
+function detectPluginVersion() {
+  try {
+    const el = document.querySelector('link[rel="modulepreload"][href*="JMSFusion"][href*="v="], script[src*="JMSFusion"][src*="v="]');
+    const url = el?.getAttribute("href") || el?.getAttribute("src") || "";
+    const match = url.match(/[?&]v=(\d+(?:\.\d+){2,3})/);
+    if (match) return "v" + match[1];
+  } catch {}
+  return "0.0.0";
+}
+
 export function getConfig() {
   if (window.__JMS_GLOBAL_CONFIG__) return window.__JMS_GLOBAL_CONFIG__;
 
@@ -854,7 +866,7 @@ function computeConfig() {
     useRandomContent: localStorage.getItem('useRandomContent') !== 'false',
     fullscreenMode: localStorage.getItem('fullscreenMode') === 'true' ? true : false,
     listLimit: 20,
-    version: "v4.0.0.7",
+    version: detectPluginVersion(),
     historySize: 20,
     updateInterval: 300000,
     nextTracksSource: localStorage.getItem('nextTracksSource') || 'playlist',
