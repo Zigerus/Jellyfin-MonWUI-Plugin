@@ -1932,7 +1932,7 @@ export const languageLabels = {
   ratingInfo: "Show Ratings",
   showCommunityRating: "Community",
   showCriticRating: "Rotten Tomato",
-  showOfficialRating: "Certification",
+  showOfficialRating: "Rating",   // was "Certification"; US usage is "what is it rated" (Nathan, 2026-11-06)
   localCommentsTitle: "Community Comments",
   detailsModalTmdbReviewsEnabled: "Show TMDb reviews section",
   detailsModalLocalCommentsEnabled: "Show Community Comments section",

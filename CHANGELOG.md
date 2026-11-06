@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.87 (Zigerus build, Jellyfin 12)
+
+### Changes
+- **English label "Certification" is now "Rating"** (`showOfficialRating`): the pause screen row, the parental-PIN card and the two settings checkboxes that show the official rating (R, PG-13…). US usage is "what is it rated"; other languages are untouched.
+
 ## 4.0.0.86 (Zigerus build, Jellyfin 12)
 
 ### Fixes
