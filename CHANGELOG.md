@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.86 (Zigerus build, Jellyfin 12)
+
+### Fixes
+- **The pause screen's row icons can be themed away.** Each metadata row label starts with an emoji ("📅 Year"); it is now wrapped in `<i class="pause-row-icon" aria-hidden="true">` so a theme can hide the glyph while keeping the text; the progress strip's "⏳ Remaining" label gets the same wrapper. Nothing changes without such a theme.
+
 ## 4.0.0.85 (Zigerus build, Jellyfin 12)
 
 ### Features

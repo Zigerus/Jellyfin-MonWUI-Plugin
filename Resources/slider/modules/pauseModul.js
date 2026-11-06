@@ -2215,7 +2215,7 @@ function kickBindRetries(schedule = [50,150,350,800,1500,2500,4000,6000,8000,120
         }
       }
     } catch {}
-    if (progressRemainEl) progressRemainEl.textContent = `⏳ ${remLbl}: ${remText}`;
+    if (progressRemainEl) progressRemainEl.innerHTML = `<i class="pause-row-icon" aria-hidden="true">⏳</i> ${remLbl}: ${remText}`;   // remLbl/remText are plain text (labels + formatTime)
     if (progressPctEl) progressPctEl.textContent = pctText;
   }
 
@@ -2604,7 +2604,10 @@ function hideOverlay(opts = {}) {
   }
   function genRow(label, value) {
     if (!value) return "";
-    return `<div class="info-row"><span>${label}</span><span>${value}</span></div>`;
+    // the label starts with an emoji glyph; wrap it so a theme can hide it (Lumen does) without losing the text
+    const m = String(label).match(/^(\S+)\s+([\s\S]*)$/);
+    const labelHtml = m ? `<i class="pause-row-icon" aria-hidden="true">${m[1]}</i>${m[2]}` : label;
+    return `<div class="info-row"><span>${labelHtml}</span><span>${value}</span></div>`;
   }
 
   async function refreshData(data) {
