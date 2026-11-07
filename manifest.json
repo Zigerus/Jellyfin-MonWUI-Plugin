@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.89",
+        "changelog": "### Changes\n- **English: the \"Featured Upcoming Movies\" tag for a film already out reads \"In Theaters\" instead of \"Now Playing\"** (`tmdbTrailerNowPlayingBadge`), the way the other languages already say it (\"Im Kino\", \"En salle\", \"Vizyonda\"…) and the module's own built-in default. \"Now Playing\" stays where it means playback (the cast and sync labels).",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.89/JMSFusion_4.0.0.89_12.0.0.zip",
+        "checksum": "3AFA0F819126485B233B46D7D9F9409C",
+        "timestamp": "2026-11-07T02:08:59"
+      },
+      {
         "version": "4.0.0.88",
         "changelog": "### Changes\n- **The release ribbon on \"Featured Upcoming Movies\" cards says which state it shows**: `.tmdb-trailer-ribbon` now also carries `tmdb-trailer-ribbon--upcoming` or `tmdb-trailer-ribbon--now-playing` and a matching `data-trailer-state`, so a theme can style Coming Soon and Now Playing apart. The default look does not change.",
         "targetAbi": "12.0.0.0",
