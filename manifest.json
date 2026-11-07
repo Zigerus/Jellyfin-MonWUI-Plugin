@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.88",
+        "changelog": "### Changes\n- **The release ribbon on \"Featured Upcoming Movies\" cards says which state it shows**: `.tmdb-trailer-ribbon` now also carries `tmdb-trailer-ribbon--upcoming` or `tmdb-trailer-ribbon--now-playing` and a matching `data-trailer-state`, so a theme can style Coming Soon and Now Playing apart. The default look does not change.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.88/JMSFusion_4.0.0.88_12.0.0.zip",
+        "checksum": "D779CDDF26F338EA3566565FE381E54A",
+        "timestamp": "2026-11-07T01:14:41"
+      },
+      {
         "version": "4.0.0.87",
         "changelog": "### Changes\n- **English label \"Certification\" is now \"Rating\"** (`showOfficialRating`): the pause screen row, the parental-PIN card and the two settings checkboxes that show the official rating (R, PG-13…). US usage is \"what is it rated\"; other languages are untouched.",
         "targetAbi": "12.0.0.0",
