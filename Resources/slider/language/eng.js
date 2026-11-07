@@ -1229,7 +1229,7 @@ export const languageLabels = {
   tmdbTrailerRowsEmpty: "No suitable upcoming or newly released TMDb trailers are available to display right now.",
   tmdbTrailerRibbon: "Trailer",
   tmdbTrailerUpcomingBadge: "Coming Soon",
-  tmdbTrailerNowPlayingBadge: "Now Playing",
+  tmdbTrailerNowPlayingBadge: "In Theaters",
   enableStudioHubs: "Enable Studio Collections",
   studioHubsColorize: "Colorize Studio Collections",
   addManualCollection: "Add new collection",

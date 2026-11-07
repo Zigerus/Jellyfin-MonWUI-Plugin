@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.89 (Zigerus build, Jellyfin 12)
+
+### Changes
+- **English: the "Featured Upcoming Movies" tag for a film already out reads "In Theaters" instead of "Now Playing"** (`tmdbTrailerNowPlayingBadge`), the way the other languages already say it ("Im Kino", "En salle", "Vizyonda"…) and the module's own built-in default. "Now Playing" stays where it means playback (the cast and sync labels).
+
 ## 4.0.0.88 (Zigerus build, Jellyfin 12)
 
 ### Changes
