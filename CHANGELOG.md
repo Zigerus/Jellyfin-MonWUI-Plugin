@@ -5,6 +5,19 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.91 (Zigerus build, Jellyfin 12)
+
+### Security
+- **Every plugin endpoint now needs a Jellyfin sign-in.** Jellyfin 12 runs with legacy authorization off, so it ignores the `X-Emby-Token` header MonWUI sends and gives the plugin no identity for those requests. Most controllers therefore identified the caller from the `X-Emby-UserId` header or a `userId` query value alone, which anyone can write. An anonymous request carrying an administrator's id could read the Seerr API key, the Sonarr/Radarr settings, the parental-PIN profiles and the request queue, and could reach the admin actions behind the same check. Other endpoints answered with no id at all: the plugin configuration (keys redacted), per-user settings, studio-hub lists, the TMDb trailer cache including `?force=true`, and every user's scoped home-row caches.
+- One MVC filter now runs in front of every controller of the plugin, registered globally so a controller added later is closed by default. Identity comes only from something Jellyfin issued: the claims of a validated `Authorization` header or API key, or an `X-Emby-Token` / `X-MediaBrowser-Token` header that matches a signed-in device. Query-string tokens are not honoured. No identity, an unknown token or a disabled user gets 401.
+- For a non-administrator, the `X-Emby-UserId` / `X-MediaBrowser-UserId` headers are overwritten with the token's own user, and a `userId` query value naming someone else gets 403. A signed-in user can no longer pose as an administrator. An administrator may still name another user, as the admin pages do.
+- Scoped caches (`/Plugins/JMSFusion/ScopedCache/{type}/{server|user}`) refuse a non-administrator a scope that ends in another user's id.
+- Only scripts, styles, the custom assets folder, the ping and the studio-hub logo/video files stay public (`[MonwuiPublic]`). The web client loads these before sign-in or through plain tags.
+- `RequestAuth`'s levels are unchanged: the configuration endpoint still redacts every key for browser requests.
+
+### Fixes
+- The early fetch/XHR wrapper (`runtime/storage-preload.js`) adds the signed-in session's token to plugin requests that carried none: UserSettings, the scoped row caches and the settings window's cache tab. Before sign-in there is no token and the server answers 401, which those callers already handle.
+
 ## 4.0.0.90 (Zigerus build, Jellyfin 12)
 
 ### Changes

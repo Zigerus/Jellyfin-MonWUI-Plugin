@@ -375,6 +375,7 @@ namespace Jellyfin.Plugin.JMSFusion.Controllers
             return Ok(new { ok = true, entry, entries = cfg.StudioHubManualEntries });
         }
 
+        [MonwuiPublic] // Fork Zigerus (4.0.0.91): the file itself, loaded by <img>/<video> tags that send no sign-in.
         [HttpGet("logo/{fileName}")]
         [HttpHead("logo/{fileName}")]
         public IActionResult GetLogo(string fileName)
@@ -516,6 +517,7 @@ namespace Jellyfin.Plugin.JMSFusion.Controllers
             });
         }
 
+        [MonwuiPublic] // Fork Zigerus (4.0.0.91): the file itself, loaded by <img>/<video> tags that send no sign-in.
         [HttpGet("video/{fileName}")]
         [HttpHead("video/{fileName}")]
         public IActionResult GetVideo(string fileName)

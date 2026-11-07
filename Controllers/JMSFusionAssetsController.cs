@@ -6,6 +6,7 @@ using IOFile = System.IO.File;
 
 namespace Jellyfin.Plugin.JMSFusion.Controllers
 {
+    [MonwuiPublic] // Fork Zigerus (4.0.0.91): loaded before sign-in or by plain tags; code and styles only.
     [ApiController]
     [Route("Plugins/JMSFusion/assets")]
     public class JMSFusionAssetsController : ControllerBase

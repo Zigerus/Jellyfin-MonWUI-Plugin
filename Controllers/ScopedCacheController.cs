@@ -24,6 +24,28 @@ namespace Jellyfin.Plugin.JMSFusion.Controllers
             _logger = logger;
         }
 
+        // Fork Zigerus (4.0.0.91): scopes are "<serverId>|<userId>" (scopedJsonCache.js, collectionCacheDb.js, sliderCache.js).
+        // The scope came from the URL with no check, so anyone could read or overwrite another user's home-row caches. After
+        // the sign-in gate a non-admin only reaches scopes whose last segment is their own id.
+        private IActionResult? RefuseForeignScope(string scope)
+        {
+            if (HttpContext.Items[MonwuiAuthGateFilter.ItemIsAdmin] is true)
+            {
+                return null;
+            }
+
+            var own = HttpContext.Items[MonwuiAuthGateFilter.ItemUserId] is Guid id ? id.ToString("N") : string.Empty;
+            var raw = (scope ?? string.Empty).Trim();
+            var last = raw.Contains('|') ? raw[(raw.LastIndexOf('|') + 1)..] : raw;
+            var key = last.Replace("-", string.Empty, StringComparison.Ordinal).Trim().ToLowerInvariant();
+            if (own.Length > 0 && string.Equals(key, own, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return StatusCode(403, new { ok = false, error = "That cache belongs to another user." });
+        }
+
         private void NoCache()
         {
             Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
@@ -40,6 +62,12 @@ namespace Jellyfin.Plugin.JMSFusion.Controllers
             if (!_cacheService.TryNormalizeCacheType(cacheType, out var normalizedCacheType))
             {
                 return NotFound();
+            }
+
+            var foreign = RefuseForeignScope(scope);
+            if (foreign is not null)
+            {
+                return foreign;
             }
 
             try
@@ -70,6 +98,12 @@ namespace Jellyfin.Plugin.JMSFusion.Controllers
             if (!_cacheService.TryNormalizeCacheType(cacheType, out var normalizedCacheType))
             {
                 return NotFound();
+            }
+
+            var foreign = RefuseForeignScope(scope);
+            if (foreign is not null)
+            {
+                return foreign;
             }
 
             try
@@ -113,6 +147,12 @@ namespace Jellyfin.Plugin.JMSFusion.Controllers
             if (!_cacheService.TryNormalizeCacheType(cacheType, out var normalizedCacheType))
             {
                 return NotFound();
+            }
+
+            var foreign = RefuseForeignScope(scope);
+            if (foreign is not null)
+            {
+                return foreign;
             }
 
             try

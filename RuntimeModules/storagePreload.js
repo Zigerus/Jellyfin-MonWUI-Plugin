@@ -20,6 +20,31 @@
       } catch { return u; }
     };
     const bearer = (tok) => 'MediaBrowser Token="' + tok + '"';
+    // Fork Zigerus (4.0.0.91): the plugin's own endpoints need a Jellyfin sign-in now. Some MonWUI callers sent no token
+    // at all (UserSettings, the scoped row caches, the settings DB tab), relying on the server trusting X-Emby-UserId.
+    // Any same-origin request to /JMSFusion/, /MonWUI/ or /Plugins/... of them without Authorization or X-Emby-Token gets
+    // the signed-in session's token here; before sign-in there is none and the server answers 401.
+    const PLUGIN_PATH = /\/(?:Plugins\/)?(?:JMSFusion|MonWUI)\//i;
+    const isPluginUrl = (u) => {
+      try { const x = new URL(u, location.href); return x.origin === location.origin && PLUGIN_PATH.test(x.pathname); } catch { return false; }
+    };
+    const sessionToken = () => {
+      try {
+        const api = window.ApiClient;
+        const t = api && typeof api.accessToken === "function" ? api.accessToken() : "";
+        if (t) return String(t);
+      } catch {}
+      try {
+        const creds = JSON.parse(localStorage.getItem("jellyfin_credentials") || "null");
+        const list = creds && Array.isArray(creds.Servers) ? creds.Servers.filter((s) => s && s.AccessToken) : [];
+        const here = list.find((s) => [s.ManualAddress, s.LocalAddress, s.RemoteAddress].some((a) => {
+          try { return a && new URL(a).origin === location.origin; } catch { return false; }
+        }));
+        const hit = here || list[0];
+        if (hit) return String(hit.AccessToken);
+      } catch {}
+      return "";
+    };
 
     const origFetch = window.fetch;
     if (typeof origFetch === "function") {
@@ -38,6 +63,16 @@
                 init = Object.assign({}, init, { headers: h });
               }
             }
+            if (isPluginUrl(url)) {
+              const h = new Headers((init && init.headers) || {});
+              if (!h.has("Authorization") && !h.has("X-Emby-Token")) {
+                const tok = sessionToken();
+                if (tok) {
+                  h.set("Authorization", bearer(tok));
+                  init = Object.assign({}, init || {}, { headers: h });
+                }
+              }
+            }
           }
         } catch {}
         return origFetch.call(this, input, init);
@@ -48,9 +83,11 @@
     if (XHR) {
       const open = XHR.open;
       const setHeader = XHR.setRequestHeader;
+      const send = XHR.send;
       XHR.open = function (method, url) {
         try {
           this.__jmsSame = sameOrigin(url);
+          this.__jmsPlugin = this.__jmsSame && isPluginUrl(url);
           this.__jmsAuth = false;
           if (this.__jmsSame) arguments[1] = fixUrl(url);
         } catch {}
@@ -68,6 +105,15 @@
           }
         } catch {}
         return setHeader.call(this, name, value);
+      };
+      XHR.send = function () {
+        try {
+          if (this.__jmsPlugin && !this.__jmsAuth) {
+            const tok = sessionToken();
+            if (tok) { this.__jmsAuth = true; setHeader.call(this, "Authorization", bearer(tok)); }
+          }
+        } catch {}
+        return send.apply(this, arguments);
       };
     }
   } catch {}

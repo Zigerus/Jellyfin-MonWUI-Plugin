@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Jellyfin.Plugin.JMSFusion.Controllers;
 
+[MonwuiPublic] // Fork Zigerus (4.0.0.91): loaded before sign-in or by plain tags; code and styles only.
+
 [ApiController]
 [Route("JMSFusion/ping")]
 [Route("Plugins/JMSFusion/ping")]

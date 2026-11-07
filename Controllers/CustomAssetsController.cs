@@ -93,6 +93,8 @@ public static class CustomAssets
     }
 }
 
+[MonwuiPublic] // Fork Zigerus (4.0.0.91): loaded before sign-in or by plain tags; code and styles only.
+
 [ApiController]
 [Route("JMSFusion/custom")]
 public class CustomAssetsController : ControllerBase
