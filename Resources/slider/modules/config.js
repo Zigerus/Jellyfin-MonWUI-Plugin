@@ -28,6 +28,14 @@ export const DEFAULT_MANAGED_HOME_SECTION_ORDER = Object.freeze([
   "directorRows"
 ]);
 export const NATIVE_HOME_SECTION_ORDER_PREFIX = "native:";
+// Fork Zigerus (4.0.0.94): one tag row placed on its own in the home-row order ("tagRow:<row id>"). Only the DOM sort
+// (homeSectionNative keepManagedSectionsBelowNative) reads these; the loading chain keeps the single "tagRows" key.
+export const TAG_ROW_ORDER_PREFIX = "tagRow:";
+const TAG_ROW_ORDER_KEY_RE = /^tagRow:[A-Za-z0-9_-]{1,40}$/;
+
+export function isTagRowOrderKey(value) {
+  return TAG_ROW_ORDER_KEY_RE.test(String(value || "").trim());
+}
 
 const MANAGED_HOME_SECTION_ORDER_SET = new Set(DEFAULT_MANAGED_HOME_SECTION_ORDER);
 
@@ -126,7 +134,8 @@ function isRecognizedManagedHomeSectionOrderKey(value) {
   const key = String(value || "").trim();
   return !!key && (
     MANAGED_HOME_SECTION_ORDER_SET.has(key) ||
-    isNativeHomeSectionOrderKey(key)
+    isNativeHomeSectionOrderKey(key) ||
+    isTagRowOrderKey(key)
   );
 }
 
@@ -197,6 +206,18 @@ export function normalizeManagedHomeSectionOrder(value = null, { nativeEntries }
   ensureImplicitManagedFollowerOrder(out, explicit, "tmdbTrailerRows", "tagRows");
   ensureImplicitManagedFollowerOrder(out, explicit, "recentRows", "continueRows");
   ensureImplicitManagedFollowerOrder(out, explicit, "continueRows", "nextUpRows");
+
+  // Fork Zigerus (4.0.0.94): when tag rows are placed one by one, the "tagRows" key that loads them all goes right
+  // before the first of them (unless the user placed it), so they load where the first one sits; the DOM sort then
+  // moves each to its own place.
+  if (!explicit.has("tagRows")) {
+    const firstRow = out.findIndex((key) => isTagRowOrderKey(key));
+    const group = out.indexOf("tagRows");
+    if (firstRow >= 0 && group >= 0 && group !== firstRow - 1) {
+      out.splice(group, 1);
+      out.splice(out.findIndex((key) => isTagRowOrderKey(key)), 0, "tagRows");
+    }
+  }
 
   return out;
 }

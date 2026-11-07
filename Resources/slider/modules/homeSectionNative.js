@@ -421,7 +421,12 @@ export function keepManagedSectionsBelowNative(container) {
   const entries = Array.from(container.children).map((child, originalIndex) => {
     if (isManagedHomeSection(child)) {
       const meta = getManagedHomeSectionSortMeta(child);
-      const baseOrder = orderMap.has(meta.key)
+      // Fork Zigerus (4.0.0.94): a tag row placed on its own ("tagRow:<id>") sorts at its own place; one not placed
+      // stays with the "tagRows" group.
+      const rowKey = child.dataset?.tagRowId ? `tagRow:${child.dataset.tagRowId}` : "";
+      const baseOrder = (rowKey && orderMap.has(rowKey))
+        ? orderMap.get(rowKey)
+        : orderMap.has(meta.key)
         ? orderMap.get(meta.key)
         : (order.length + originalIndex);
       return {

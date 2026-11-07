@@ -4379,6 +4379,7 @@ async function fillSectionWithItemsInner({
   allowEmptyRow = false,
   emptyMessage = "",
   deferNetworkRender = false,
+  tagRowId = "",
 }) {
   const { section, row, heroHost, scrollWrap } = buildSectionSkeleton({
     titleText,
@@ -4396,6 +4397,7 @@ async function fillSectionWithItemsInner({
   if (!useHero) heroHost.style.display = "none";
   if (sectionId) section.id = sectionId;
   section.dataset.managedSectionKey = sectionKey;
+  if (tagRowId) section.dataset.tagRowId = tagRowId;
 
   try {
     await waitForManagedHomeRowRelease({
@@ -5112,6 +5114,7 @@ async function initAndRender({ sectionKey = "recentRows", mountState = null } = 
       rowClassName: byRating ? "top10-row tag-row" : "tag-row",
       cardVariant: byRating ? "top10" : "default",
       deferNetworkRender: false,
+      tagRowId: tagRow.id,
       fetcher: Object.assign(
         () => fetchTagRowItems(userId, tagRow),
         { cachedItems: () => loadCachedTagRowItems(tagRow) }

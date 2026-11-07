@@ -1217,6 +1217,8 @@ export const languageLabels = {
   tagRowsAdd: "Add a tag row",
   tagRowsEmpty: "No tag rows yet.",
   tagRowsOrderLabel: "Tag rows",
+  tagRowOrderPrefix: "Tag row",
+  tagRowsIntro2: "A row of titles that carry tags you pick, like Christmas. Optionally only within some genres, and only between two dates. Each row gets its own place in Home row order at the end of this tab.",
   tagRowTitle: "Row title",
   tagRowTitlePlaceholder: "e.g. Christmas",
   tagRowUntitled: "Untitled row",

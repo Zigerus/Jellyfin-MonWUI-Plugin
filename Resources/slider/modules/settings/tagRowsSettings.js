@@ -157,7 +157,8 @@ function parseYmd(s) {
   return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
 }
 
-export function createTagRowsSection(config, labels) {
+// onRowsChange(rows) runs after every edit, so the Home row order list further down can list each row by name.
+export function createTagRowsSection(config, labels, { onRowsChange = null } = {}) {
   ensureTagRowsStyles();
   let rows = normalizeTagRows(config?.tagRows);
   const expanded = new Set();
@@ -166,11 +167,16 @@ export function createTagRowsSection(config, labels) {
   const section = createSection(L(labels, "tagRowsHeading", "Tag rows"));
   section.classList.add("tagrows-section");
   const hidden = h("input", { attrs: { type: "hidden", name: "tagRows", id: "tagRows" } });
-  const save = () => { hidden.value = JSON.stringify(rows.map((r) => normalizeTagRow(r))); };
+  const save = () => {
+    hidden.value = JSON.stringify(rows.map((r) => normalizeTagRow(r)));
+    if (typeof onRowsChange === "function") {
+      try { onRowsChange(rows.map((r) => ({ ...r }))); } catch (e) { console.warn("tagRows: order sync failed:", e); }
+    }
+  };
 
   const list = h("div", { cls: "tagrows-list", attrs: { role: "list" } });
   const bar = h("div", { cls: "tagrows-bar" }, [
-    h("p", { cls: "tagrows-intro", text: L(labels, "tagRowsIntro", "A row of titles that carry tags you pick, like Christmas. Optionally only within some genres, and only between two dates.") }),
+    h("p", { cls: "tagrows-intro", text: L(labels, "tagRowsIntro2", "A row of titles that carry tags you pick, like Christmas. Optionally only within some genres, and only between two dates. Each row gets its own place in Home row order at the end of this tab.") }),
     button("tagrows-btn tagrows-add", {
       icon: ICON.plus,
       label: L(labels, "tagRowsAdd", "Add a tag row"),
@@ -200,58 +206,9 @@ export function createTagRowsSection(config, labels) {
     save();
   }
 
-  // --- reorder: drag the handle, or focus it and press the arrow keys -----------------------------------------
-  let dragId = null;
-  list.addEventListener("dragover", (e) => {
-    if (!dragId) return;
-    e.preventDefault();
-    const dragging = cards.get(dragId);
-    const over = e.target.closest?.(".tagrows-card");
-    if (!dragging || !over || over === dragging) return;
-    const r = over.getBoundingClientRect();
-    list.insertBefore(dragging, (e.clientY - r.top) > r.height / 2 ? over.nextSibling : over);
-  });
-  list.addEventListener("drop", (e) => { if (dragId) e.preventDefault(); });
-  function finishDrag() {
-    if (!dragId) return;
-    const order = [...list.querySelectorAll(".tagrows-card")].map((c) => c.dataset.id);
-    rows = order.map((id) => rows.find((r) => r.id === id)).filter(Boolean);
-    const card = cards.get(dragId);
-    if (card) card.draggable = false;
-    dragId = null;
-    save();
-  }
-  function move(row, delta) {
-    const i = rows.indexOf(row);
-    const j = i + delta;
-    if (i < 0 || j < 0 || j >= rows.length) return;
-    rows.splice(i, 1);
-    rows.splice(j, 0, row);
-    renderList();
-    cards.get(row.id)?.querySelector(".tagrows-handle")?.focus();
-  }
-
   function buildCard(row) {
     const card = h("div", { cls: "tagrows-card", attrs: { role: "listitem", "data-id": row.id } });
     const isOpen = () => expanded.has(row.id);
-
-    const handle = button("tagrows-handle", {
-      icon: ICON.drag,
-      title: L(labels, "tagRowDrag", "Drag to reorder (or use the arrow keys)"),
-      attrs: { "aria-roledescription": "drag handle" }
-    });
-    handle.addEventListener("pointerdown", () => { card.draggable = true; });
-    handle.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowUp") { e.preventDefault(); move(row, -1); }
-      if (e.key === "ArrowDown") { e.preventDefault(); move(row, 1); }
-    });
-    card.addEventListener("dragstart", (e) => {
-      if (!card.draggable) { e.preventDefault(); return; }
-      dragId = row.id;
-      card.classList.add("is-dragging");
-      try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", row.id); } catch {}
-    });
-    card.addEventListener("dragend", () => { card.classList.remove("is-dragging"); finishDrag(); });
 
     const sw = button("tagrows-switch", { title: L(labels, "tagRowEnabled", "Show this row"), attrs: { role: "switch", "aria-checked": row.enabled ? "true" : "false" } });
     sw.addEventListener("click", () => {
@@ -264,7 +221,7 @@ export function createTagRowsSection(config, labels) {
     const name = h("span", { cls: "tagrows-name" });
     const meta = h("span", { cls: "tagrows-meta" });
     const toggle = button("tagrows-iconbtn tagrows-toggle", { attrs: { "aria-expanded": isOpen() ? "true" : "false" } });
-    const head = h("div", { cls: "tagrows-head" }, [handle, sw, name, meta, h("span", { cls: "tagrows-grow" }), toggle]);
+    const head = h("div", { cls: "tagrows-head" }, [sw, name, meta, h("span", { cls: "tagrows-grow" }), toggle]);
     card.appendChild(head);
 
     let lastCount = null;
@@ -706,7 +663,7 @@ html body #settings-modal button.tagrows-switch { flex: none; position: relative
 html body #settings-modal button.tagrows-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 999px; background: #f4f4f7; opacity: .75; transition: left .15s ease; }
 html body #settings-modal button.tagrows-switch[aria-checked="true"] { background: var(--tr-on); }
 html body #settings-modal button.tagrows-switch[aria-checked="true"]::after { left: 19px; background: var(--tr-on-text); opacity: 1; }
-html body #settings-modal .tagrows-body { padding: 2px 16px 14px 54px; border-top: 1px solid var(--tr-line); }
+html body #settings-modal .tagrows-body { padding: 2px 16px 14px 66px; border-top: 1px solid var(--tr-line); }
 html body #settings-modal .tagrows-body[hidden] { display: none; }
 html body #settings-modal .tagrows-field { display: flex; align-items: flex-start; gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--tr-line); }
 html body #settings-modal .tagrows-label { flex: 0 0 190px; padding-top: 7px; }
@@ -764,7 +721,7 @@ html body #settings-modal button.tagrows-cd.is-today::after { content: ""; posit
 html body #settings-modal .tagrows-pop-f { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--tr-line); flex-wrap: wrap; }
 html body #settings-modal .tagrows-pop-l { font-size: 14px; color: var(--tr-text); }
 html body #settings-modal .tagrows-sum { font: 400 13px/1.3 var(--tr-mono); color: var(--tr-muted); }
-html body #settings-modal button.tagrows-btn { display: inline-flex; align-items: center; gap: 8px; height: 36px; margin: 0; padding: 0 16px; min-width: 0; min-height: 0; border: 1px solid var(--tr-line-strong); border-radius: 999px; background: none; color: var(--tr-text) !important; font: 500 14px/1 var(--settings-font, inherit); cursor: pointer; box-shadow: none; white-space: nowrap; }
+html body #settings-modal button.tagrows-btn { flex: none; display: inline-flex; align-items: center; gap: 8px; height: 36px; margin: 0; padding: 0 16px; min-width: 0; min-height: 0; border: 1px solid var(--tr-line-strong); border-radius: 999px; background: none; color: var(--tr-text) !important; font: 500 14px/1 var(--settings-font, inherit); cursor: pointer; box-shadow: none; white-space: nowrap; }
 html body #settings-modal button.tagrows-btn svg { width: 15px; height: 15px; }
 html body #settings-modal button.tagrows-btn--primary { background: var(--tr-text); border-color: var(--tr-text); color: var(--settings-input-option-bg, #0a0a0f) !important; }
 html body #settings-modal button.tagrows-btn.tagrows-delete { border-color: var(--settings-danger-border, rgba(212,74,74,.6)); color: var(--settings-danger, #e07a7a) !important; }
@@ -789,7 +746,7 @@ html body #settings-modal button.tagrows-cd.is-blank:hover { background: none; }
   html body #settings-modal .tagrows-head { gap: 10px 12px; }
   html body #settings-modal .tagrows-name { flex: 1 1 auto; }
   html body #settings-modal .tagrows-grow { display: none; }
-  html body #settings-modal .tagrows-meta { order: 5; flex: 1 1 100%; padding-left: 36px; }
+  html body #settings-modal .tagrows-meta { order: 5; flex: 1 1 100%; padding-left: 50px; }
 }
 `;
   document.head.appendChild(style);

@@ -2,6 +2,7 @@ import {
   getAdminTargetProfile,
   getDeviceProfileAuto,
   isNativeHomeSectionOrderKey,
+  isTagRowOrderKey,
   normalizeManagedCardTitleDisplayMode,
   normalizeManagedHomeSectionOrder
 } from "../config.js";
@@ -12,6 +13,13 @@ import {
 } from "../homeSectionNative.js";
 import { createCheckbox, createSection, createNumberInput } from "./shared.js";
 import { createTagRowsSection } from "./tagRowsSettings.js";
+import { normalizeTagRows } from "../tagRows.js";
+
+// Fork Zigerus (4.0.0.94): each tag row is its own entry in Home row order ("tagRow:<id>").
+function tagRowOrderLabel(row, labels) {
+  const name = row?.title || (Array.isArray(row?.tags) && row.tags.length ? row.tags.join(", ") : "") || labels?.tagRowUntitled || "Untitled row";
+  return `${labels?.tagRowOrderPrefix || "Tag row"} · ${name}`;
+}
 import { applySettings } from "./applySettings.js";
 import { fetchItemDetails, makeApiRequest } from "../../../Plugins/JMSFusion/runtime/api.js";
 import {
@@ -366,13 +374,32 @@ function getManagedHomeSectionOrderItems(config, labels, nativeItems = []) {
     ])
   );
 
-  return normalizeManagedHomeSectionOrder(
+  const order = normalizeManagedHomeSectionOrder(
     config?.managedHomeSectionOrder,
     { nativeEntries: nativeItems }
-  ).map((name) => ({
-    name,
-    label: nativeLabels.get(name) || getManagedHomeSectionOrderLabel(name, config, labels)
-  }));
+  );
+  // Fork Zigerus (4.0.0.94): list every tag row on its own. A row already placed keeps its place; the others sit where
+  // the "tagRows" group is, in their list order. The group entry itself is not shown, and a placed row that no longer
+  // exists is dropped.
+  const rows = normalizeTagRows(config?.tagRows);
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+  const placed = new Set(order.filter((key) => isTagRowOrderKey(key)).map((key) => key.slice(7)).filter((id) => rowById.has(id)));
+  const out = [];
+  for (const name of order) {
+    if (isTagRowOrderKey(name)) {
+      const row = rowById.get(name.slice(7));
+      if (row) out.push({ name, label: tagRowOrderLabel(row, labels) });
+      continue;
+    }
+    if (name === "tagRows") {
+      for (const row of rows) {
+        if (!placed.has(row.id)) out.push({ name: `tagRow:${row.id}`, label: tagRowOrderLabel(row, labels) });
+      }
+      continue;
+    }
+    out.push({ name, label: nativeLabels.get(name) || getManagedHomeSectionOrderLabel(name, config, labels) });
+  }
+  return out;
 }
 
 function ensureStudioHubsSpinnerStyles() {
@@ -3044,7 +3071,32 @@ export function createStudioHubsPanel(config, labels) {
     labels?.homeRowsIntro ||
     'Every row MonWUI adds to the home page, in one place. The order they appear in is set at the end of this tab.';
   homeRowsPanel.appendChild(homeRowsIntro);
-  homeRowsPanel.appendChild(createTagRowsSection(config, labels));
+  // The order list (managedOrderSection, further down) follows the editor: a new row joins it after the last tag row
+  // (or after Featured Upcoming), a deleted one leaves it, a renamed one is relabelled.
+  const syncTagRowOrderEntries = (rows) => {
+    if (!managedOrderList) return;
+    const items = [...managedOrderList.querySelectorAll(".dnd-item")];
+    const byName = new Map(items.map((li) => [li.dataset.name, li]));
+    const wanted = new Set(rows.map((row) => `tagRow:${row.id}`));
+    items.forEach((li) => { if (isTagRowOrderKey(li.dataset.name) && !wanted.has(li.dataset.name)) li.remove(); });
+    for (const row of rows) {
+      const name = `tagRow:${row.id}`;
+      const label = tagRowOrderLabel(row, labels);
+      const existing = byName.get(name);
+      if (existing) {
+        const text = existing.children[1];
+        if (text && text.textContent !== label) text.textContent = label;
+        continue;
+      }
+      const li = createDnDItem({ name, label }, labels);
+      const tagItems = [...managedOrderList.querySelectorAll(".dnd-item")].filter((el) => isTagRowOrderKey(el.dataset.name));
+      const anchor = tagItems[tagItems.length - 1] || managedOrderList.querySelector('.dnd-item[data-name="tmdbTrailerRows"]');
+      if (anchor) anchor.insertAdjacentElement("afterend", li); else managedOrderList.appendChild(li);
+      byName.set(name, li);
+    }
+    refreshManagedHomeSectionOrder();
+  };
+  homeRowsPanel.appendChild(createTagRowsSection(config, labels, { onRowsChange: syncTagRowOrderEntries }));
   homeRowsPanel.appendChild(rowsSection);
   homeRowsPanel.appendChild(becauseYouWatchedSection);
   homeRowsPanel.appendChild(genreSection);

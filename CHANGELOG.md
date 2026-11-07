@@ -5,6 +5,14 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.94 (Zigerus build, Jellyfin 12)
+
+### Changes
+- **Each tag row has its own place in "Home row order".** The order list at the end of the Home Rows tab shows every tag row by name ("Tag row · Christmas") among the other rows, so one row can sit at the top and another further down. A new row joins the list right after the last tag row (or after Featured Upcoming Movies), renaming a row relabels its entry, and deleting a row removes it, all before saving.
+- The saved order stores each row as `tagRow:<row id>`. The section sorter places each row there; rows not placed yet stay where the "Tag rows" group used to sit. The group key that loads all tag rows now sits right before the first placed row, so the rows load where the first one appears.
+- The row cards in the editor no longer have drag handles: placement lives in one place, the order list.
+- An order saved by 4.0.0.93 (with the single "Tag rows" entry) shows its rows individually at that spot.
+
 ## 4.0.0.93 (Zigerus build, Jellyfin 12)
 
 ### Changes
