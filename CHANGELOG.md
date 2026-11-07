@@ -5,6 +5,14 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.90 (Zigerus build, Jellyfin 12)
+
+### Changes
+- **"Featured Upcoming Movies" shows popular films the signed-in user is likely to want**, not 10 picked at random from the whole TMDb pool. The server now keeps TMDb's `popularity`, `vote_average`, `vote_count` and `genre_ids` for every cached trailer, and when it trims the pool to 150 it keeps the most popular titles. The page scores each film as log-scaled popularity × (0.3 + 0.7 × genre affinity). Affinity is the mean of the film's genre weights, read from the user's own movie library once a day: each played film counts 1, plus 0.5 per rewatch (up to 4) and 2 for a favourite, multiplied by how often the user finishes films of that genre compared with the library as a whole. Each page load draws 5 Coming Soon and 5 In Theaters cards, weighted by score, from the top 12 of each; if one side is short the other fills the gap. With no watch history the row ranks by popularity alone, and a pool cached by an older server keeps the old random pick.
+
+### Fixes
+- **The trailer cache no longer refetches everything from TMDb on every request when it holds fewer than 150 trailers.** The 24-hour freshness test also required a full 150, so a region whose lists yield, say, 148 trailers re-ran every list, video and release-date call each time the row or the pre-roll asked. A cache with any trailers is now fresh for 24 hours. A cache written before this version (no popularity on its items) refreshes once; if TMDb is unreachable the old pool is still served.
+
 ## 4.0.0.89 (Zigerus build, Jellyfin 12)
 
 ### Changes

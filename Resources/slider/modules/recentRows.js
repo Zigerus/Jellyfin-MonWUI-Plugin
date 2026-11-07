@@ -295,7 +295,8 @@ const TMDB_TOP_MOVIE_POOL_SIZE = 240;
 const TMDB_TOP_RATED_PAGE_LIMIT = 8;
 const TMDB_RECENT_RELEASE_WINDOW_DAYS = 70;
 const TMDB_UPCOMING_RELEASE_WINDOW_DAYS = 365;
-const TMDB_TRAILER_ROW_CACHE_KEY = "jms:recentRows:tmdb-trailers:v5";
+// Fork Zigerus (4.0.0.90): v6, so a pool saved before the server kept popularity is not drawn from at random once more.
+const TMDB_TRAILER_ROW_CACHE_KEY = "jms:recentRows:tmdb-trailers:v6";
 const TMDB_TOP_MOVIE_LOOKUP_MIN = 120;
 const TMDB_API_KEY_CACHE_TTL_MS = 60 * 1000;
 const TOP_RANK_PROFILE_TTL_MS = 10 * 60 * 1000;
@@ -2384,7 +2385,13 @@ function normalizeTmdbTrailerCacheItems(payload) {
       ratingScore: Number(item?.ratingScore ?? item?.RatingScore),
       ratingSubScore: Number(item?.ratingSubScore ?? item?.RatingSubScore),
       certificationCountry: String(item?.certificationCountry ?? item?.CertificationCountry ?? "").trim(),
-      adult: item?.adult === true || item?.Adult === true
+      adult: item?.adult === true || item?.Adult === true,
+      popularity: Number(item?.popularity ?? item?.Popularity),
+      voteAverage: Number(item?.voteAverage ?? item?.VoteAverage),
+      voteCount: Number(item?.voteCount ?? item?.VoteCount),
+      genreIds: (Array.isArray(item?.genreIds ?? item?.GenreIds) ? (item?.genreIds ?? item?.GenreIds) : [])
+        .map(Number)
+        .filter((id) => Number.isFinite(id) && id > 0)
     }))
     .filter((item) =>
       Number.isFinite(item.tmdbId) &&
@@ -2419,18 +2426,206 @@ function buildTmdbTrailerPoolSignature(items = []) {
     .join("|");
 }
 
-function sampleTmdbTrailerCacheItems(items = [], limit = TOP10_ROW_CARD_COUNT) {
-  const pool = dedupeTmdbTrailerRowItems(items).slice();
-  for (let index = pool.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    const current = pool[index];
-    pool[index] = pool[swapIndex];
-    pool[swapIndex] = current;
+// Fork Zigerus (4.0.0.90): Featured Upcoming picks popular films the signed-in user is likely to want instead of 10 at
+// random from the whole TMDb pool. score = log-scaled TMDb popularity x (0.3 + 0.7 x genre affinity); affinity = the mean
+// of the film's genre weights. A genre's weight = how much the user watches it (each played film 1, +0.5 per rewatch up
+// to 4, a favourite +2) x how often they finish films of that genre against their library's average, scaled so the top
+// genre is 1. Per page load: 5 Coming Soon + 5 In Theaters, drawn with those weights from the top 12 of each state (a
+// short state's gap goes to the other). A pool from an older server (no popularity) keeps the old random pick.
+const TMDB_TRAILER_TASTE_CACHE_KEY = "jms:recentRows:tmdb-taste:v1";
+const TMDB_TRAILER_TASTE_TTL_MS = 24 * 60 * 60 * 1000;
+const TMDB_TRAILER_TOP_PER_STATE = 12;
+const TMDB_TRAILER_TASTE_FLOOR = 0.3;
+const TMDB_MOVIE_GENRE_IDS_BY_NAME = Object.freeze({
+  "action": [28],
+  "adventure": [12],
+  "animation": [16],
+  "comedy": [35],
+  "crime": [80],
+  "documentary": [99],
+  "drama": [18],
+  "family": [10751],
+  "fantasy": [14],
+  "history": [36],
+  "horror": [27],
+  "music": [10402],
+  "musical": [10402],
+  "mystery": [9648],
+  "romance": [10749],
+  "science fiction": [878],
+  "sci-fi": [878],
+  "tv movie": [10770],
+  "thriller": [53],
+  "war": [10752],
+  "western": [37],
+  "action & adventure": [28, 12],
+  "sci-fi & fantasy": [878, 14],
+  "war & politics": [10752]
+});
+let __tmdbTrailerTastePromise = null;
+
+function buildTmdbTrailerTasteWeights(items = []) {
+  const engagement = new Map();
+  const libraryCount = new Map();
+  const playedCount = new Map();
+  let libraryTotal = 0;
+  let playedTotal = 0;
+
+  for (const item of Array.isArray(items) ? items : []) {
+    const ids = new Set();
+    for (const name of Array.isArray(item?.Genres) ? item.Genres : []) {
+      for (const id of TMDB_MOVIE_GENRE_IDS_BY_NAME[String(name || "").trim().toLowerCase()] || []) ids.add(id);
+    }
+    if (!ids.size) continue;
+
+    const userData = item?.UserData || {};
+    const played = userData.Played === true;
+    const plays = Math.max(1, Number(userData.PlayCount) || 1);
+    const weight = (played ? 1 + 0.5 * Math.min(plays - 1, 4) : 0) + (userData.IsFavorite === true ? 2 : 0);
+
+    libraryTotal += 1;
+    if (played) playedTotal += 1;
+    for (const id of ids) {
+      libraryCount.set(id, (libraryCount.get(id) || 0) + 1);
+      if (played) playedCount.set(id, (playedCount.get(id) || 0) + 1);
+      if (weight > 0) engagement.set(id, (engagement.get(id) || 0) + weight);
+    }
   }
-  return sortTmdbTrailerCacheItems(pool.slice(0, Math.max(1, limit | 0)));
+
+  if (!engagement.size || !libraryTotal) return {};
+  const baseRate = (playedTotal + 1) / (libraryTotal + 2);
+  const raw = new Map();
+  let max = 0;
+  for (const [id, value] of engagement) {
+    const finishRate = ((playedCount.get(id) || 0) + 1) / ((libraryCount.get(id) || 0) + 2);
+    const weighted = value * (finishRate / baseRate);
+    raw.set(id, weighted);
+    if (weighted > max) max = weighted;
+  }
+
+  const weights = {};
+  if (max > 0) {
+    for (const [id, value] of raw) weights[id] = Math.round((value / max) * 1000) / 1000;
+  }
+  return weights;
 }
 
-function getTmdbTrailerRowSelection(cacheKey, items = [], limit = TOP10_ROW_CARD_COUNT) {
+function readTmdbTrailerTasteCache(userId, { allowStale = false } = {}) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TMDB_TRAILER_TASTE_CACHE_KEY) || "null");
+    if (
+      parsed?.userId === userId &&
+      (allowStale || Number(parsed?.expiresAt || 0) >= Date.now()) &&
+      parsed?.weights &&
+      typeof parsed.weights === "object"
+    ) {
+      return parsed.weights;
+    }
+  } catch {}
+  return null;
+}
+
+async function getTmdbTrailerTasteWeights() {
+  const userId = getTmdbTrailerCurrentUserIdSafe();
+  if (!userId) return {};
+  const cached = readTmdbTrailerTasteCache(userId);
+  if (cached) return cached;
+  if (__tmdbTrailerTastePromise) return __tmdbTrailerTastePromise;
+
+  __tmdbTrailerTastePromise = (async () => {
+    try {
+      const data = await makeApiRequest(
+        `/Users/${encodeURIComponent(userId)}/Items?IncludeItemTypes=Movie&Recursive=true&Fields=Genres&` +
+        `EnableUserData=true&EnableImages=false&EnableTotalRecordCount=false`
+      );
+      const weights = buildTmdbTrailerTasteWeights(Array.isArray(data?.Items) ? data.Items : []);
+      try {
+        localStorage.setItem(TMDB_TRAILER_TASTE_CACHE_KEY, JSON.stringify({
+          userId,
+          expiresAt: Date.now() + TMDB_TRAILER_TASTE_TTL_MS,
+          weights
+        }));
+      } catch {}
+      return weights;
+    } catch (error) {
+      console.warn("recentRows: trailer taste fetch error:", error);
+      return {};
+    } finally {
+      __tmdbTrailerTastePromise = null;
+    }
+  })();
+  return __tmdbTrailerTastePromise;
+}
+
+function scoreTmdbTrailerItems(items = [], weights = {}) {
+  const hasTaste = !!weights && Object.keys(weights).length > 0;
+  const logPopularity = (item) => Math.log1p(Math.max(0, Number(item?.popularity) || 0));
+  const maxLog = items.reduce((max, item) => Math.max(max, logPopularity(item)), 0);
+
+  return items.map((item) => {
+    const popularity = maxLog > 0 ? logPopularity(item) / maxLog : 0;
+    const genreIds = Array.isArray(item?.genreIds) ? item.genreIds : [];
+    const affinity = hasTaste && genreIds.length
+      ? genreIds.reduce((sum, id) => sum + (Number(weights[id]) || 0), 0) / genreIds.length
+      : 0.5;
+    const score = hasTaste
+      ? popularity * (TMDB_TRAILER_TASTE_FLOOR + (1 - TMDB_TRAILER_TASTE_FLOOR) * affinity)
+      : popularity;
+    return { item, score };
+  });
+}
+
+function drawWeightedTmdbTrailerItems(entries = [], count = 0) {
+  // Efraimidis-Spirakis: key = u^(1/score) and the largest keys win, so a higher score is likelier, never certain.
+  return entries
+    .map((entry) => ({ entry, key: Math.pow(Math.random(), 1 / Math.max(entry.score, 1e-6)) }))
+    .sort((left, right) => right.key - left.key)
+    .slice(0, Math.max(0, count))
+    .map(({ entry }) => entry.item);
+}
+
+function sampleTmdbTrailerCacheItems(items = [], limit = TOP10_ROW_CARD_COUNT, weights = null) {
+  const pool = dedupeTmdbTrailerRowItems(items).slice();
+  const want = Math.max(1, limit | 0);
+
+  if (!pool.some((item) => Number(item?.popularity) > 0)) {
+    for (let index = pool.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      const current = pool[index];
+      pool[index] = pool[swapIndex];
+      pool[swapIndex] = current;
+    }
+    return sortTmdbTrailerCacheItems(pool.slice(0, want));
+  }
+
+  const ranked = scoreTmdbTrailerItems(pool, weights || {}).sort((left, right) => right.score - left.score);
+  const byState = { upcoming: [], nowPlaying: [], other: [] };
+  for (const entry of ranked) {
+    const state = getTmdbTrailerReleaseState(entry.item);
+    (byState[state] || byState.other).push(entry);
+  }
+
+  const upcomingQuota = Math.ceil(want / 2);
+  const nowPlayingQuota = want - upcomingQuota;
+  const takeNowPlaying = Math.min(byState.nowPlaying.length, want - Math.min(upcomingQuota, byState.upcoming.length));
+  const takeUpcoming = Math.min(byState.upcoming.length, want - takeNowPlaying);
+  const picked = [
+    ...drawWeightedTmdbTrailerItems(
+      byState.upcoming.slice(0, TMDB_TRAILER_TOP_PER_STATE + Math.max(0, takeUpcoming - upcomingQuota)),
+      takeUpcoming
+    ),
+    ...drawWeightedTmdbTrailerItems(
+      byState.nowPlaying.slice(0, TMDB_TRAILER_TOP_PER_STATE + Math.max(0, takeNowPlaying - nowPlayingQuota)),
+      takeNowPlaying
+    )
+  ];
+  if (picked.length < want) {
+    picked.push(...drawWeightedTmdbTrailerItems(byState.other, want - picked.length));
+  }
+  return sortTmdbTrailerCacheItems(picked);
+}
+
+function getTmdbTrailerRowSelection(cacheKey, items = [], limit = TOP10_ROW_CARD_COUNT, weights = null) {
   const normalizedLimit = Math.max(1, limit | 0);
   const signature = buildTmdbTrailerPoolSignature(items);
   const cachedSelection = __tmdbTrailerRowSelectionCache.get(cacheKey);
@@ -2443,7 +2638,12 @@ function getTmdbTrailerRowSelection(cacheKey, items = [], limit = TOP10_ROW_CARD
     return cachedSelection.items.slice(0, normalizedLimit);
   }
 
-  const selectedItems = sampleTmdbTrailerCacheItems(items, normalizedLimit)
+  // The row first renders synchronously from the saved pool (buildManagedSection cachedItems) and that pick is kept for
+  // the page's life, so it must use the saved taste weights too, even expired ones; the fetch path refreshes them.
+  const effectiveWeights = weights ??
+    readTmdbTrailerTasteCache(getTmdbTrailerCurrentUserIdSafe(), { allowStale: true }) ??
+    {};
+  const selectedItems = sampleTmdbTrailerCacheItems(items, normalizedLimit, effectiveWeights)
     .map((item) => buildTmdbTrailerRowItemFromCache(item))
     .filter(Boolean);
 
@@ -2531,10 +2731,15 @@ async function fetchTmdbTrailerShowcase(limit = TOP10_ROW_CARD_COUNT, { signal }
   const runtimeCacheKey = buildTmdbTrailerRowCacheKey(locale);
   const cached = readTmdbTrailerRowCache(runtimeCacheKey);
 
+  const tastePromise = getTmdbTrailerTasteWeights().catch(() => ({}));
+
   try {
-    const payload = await fetchTmdbTrailerCachePayload(locale, { signal });
+    const [payload, weights] = await Promise.all([
+      fetchTmdbTrailerCachePayload(locale, { signal }),
+      tastePromise
+    ]);
     const pool = sortTmdbTrailerCacheItems(normalizeTmdbTrailerCacheItems(payload));
-    const items = getTmdbTrailerRowSelection(runtimeCacheKey, pool, limit);
+    const items = getTmdbTrailerRowSelection(runtimeCacheKey, pool, limit, weights);
 
     if (items.length) {
       writeTmdbTrailerRowCache(runtimeCacheKey, pool);
@@ -2546,7 +2751,7 @@ async function fetchTmdbTrailerShowcase(limit = TOP10_ROW_CARD_COUNT, { signal }
 
     if (cached.items.length) {
       return {
-        items: getTmdbTrailerRowSelection(runtimeCacheKey, cached.items, limit),
+        items: getTmdbTrailerRowSelection(runtimeCacheKey, cached.items, limit, weights),
         reason: "staleCache"
       };
     }
@@ -2557,8 +2762,9 @@ async function fetchTmdbTrailerShowcase(limit = TOP10_ROW_CARD_COUNT, { signal }
     };
   } catch (error) {
     console.warn("recentRows: tmdb trailer cache fetch error:", error);
+    const weights = await tastePromise;
     return {
-      items: getTmdbTrailerRowSelection(runtimeCacheKey, cached.items, limit),
+      items: getTmdbTrailerRowSelection(runtimeCacheKey, cached.items, limit, weights),
       reason: cached.items.length ? "staleCache" : "fetchError"
     };
   }

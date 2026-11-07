@@ -97,6 +97,14 @@ public sealed class CinemaPreRollCacheService
         public int? RatingSubScore { get; set; }
         public string CertificationCountry { get; set; } = string.Empty;
         public bool Adult { get; set; }
+
+        // Fork Zigerus (4.0.0.90): TMDb's list fields, kept so the Featured Upcoming row can rank by popularity and by the
+        // signed-in user's genres. Null on items cached by an older build (the snapshot then counts as stale, see
+        // TryGetFreshLocaleSnapshot).
+        public double? Popularity { get; set; }
+        public double? VoteAverage { get; set; }
+        public int? VoteCount { get; set; }
+        public List<int> GenreIds { get; set; } = new();
     }
 
     private sealed class LocaleRequest
@@ -156,6 +164,17 @@ public sealed class CinemaPreRollCacheService
         public string? OriginalLanguage { get; set; }
 
         public bool Adult { get; set; }
+
+        public double? Popularity { get; set; }
+
+        [JsonPropertyName("vote_average")]
+        public double? VoteAverage { get; set; }
+
+        [JsonPropertyName("vote_count")]
+        public int? VoteCount { get; set; }
+
+        [JsonPropertyName("genre_ids")]
+        public List<int>? GenreIds { get; set; }
     }
 
     private sealed class TmdbReleaseDatesResponse
@@ -211,6 +230,10 @@ public sealed class CinemaPreRollCacheService
         public string OriginalLanguage { get; set; } = string.Empty;
         public string FeedRegion { get; set; } = string.Empty;
         public bool Adult { get; set; }
+        public double? Popularity { get; set; }
+        public double? VoteAverage { get; set; }
+        public int? VoteCount { get; set; }
+        public List<int> GenreIds { get; set; } = new();
     }
 
     private sealed record CertificationInfo(
@@ -376,8 +399,10 @@ public sealed class CinemaPreRollCacheService
             MergeSeed(merged, seed);
         }
 
+        // Fork Zigerus (4.0.0.90): the most popular titles survive the cut (upstream: list order, then newest release).
         return merged.Values
-            .OrderByDescending(seed => ScoreSourceList(seed.SourceList))
+            .OrderByDescending(seed => seed.Popularity ?? 0d)
+            .ThenByDescending(seed => ScoreSourceList(seed.SourceList))
             .ThenByDescending(seed => ParseReleaseDate(seed.ReleaseDate))
             .ThenByDescending(seed => seed.TmdbId)
             .Take(MaxSeedCandidates)
@@ -432,7 +457,11 @@ public sealed class CinemaPreRollCacheService
                 SourceList = sourceList,
                 OriginalLanguage = TrimOrEmpty(movie.OriginalLanguage).ToLowerInvariant(),
                 FeedRegion = locale.Region,
-                Adult = movie.Adult
+                Adult = movie.Adult,
+                Popularity = CleanPopularity(movie.Popularity),
+                VoteAverage = movie.VoteAverage,
+                VoteCount = movie.VoteCount,
+                GenreIds = CleanGenreIds(movie.GenreIds)
             })
             .ToList();
     }
@@ -505,7 +534,11 @@ public sealed class CinemaPreRollCacheService
                     RatingScore = certification?.RatingScore,
                     RatingSubScore = certification?.RatingSubScore,
                     CertificationCountry = certification?.CertificationCountry ?? string.Empty,
-                    Adult = seed.Adult
+                    Adult = seed.Adult,
+                    Popularity = seed.Popularity,
+                    VoteAverage = seed.VoteAverage,
+                    VoteCount = seed.VoteCount,
+                    GenreIds = seed.GenreIds.ToList()
                 });
             }
             finally
@@ -522,7 +555,8 @@ public sealed class CinemaPreRollCacheService
                 .OrderByDescending(item => ScoreSourceList(item.SourceList))
                 .ThenByDescending(item => ParseReleaseDate(item.ReleaseDate))
                 .First())
-            .OrderByDescending(item => ScoreSourceList(item.SourceList))
+            .OrderByDescending(item => item.Popularity ?? 0d)
+            .ThenByDescending(item => ScoreSourceList(item.SourceList))
             .ThenByDescending(item => ParseReleaseDate(item.ReleaseDate))
             .ThenByDescending(item => item.TmdbId)
             .Take(MaxItemsPerLocale)
@@ -560,7 +594,13 @@ public sealed class CinemaPreRollCacheService
                 : item)
             .ToList();
 
-        return NormalizeCacheItems(newItems.Concat(updatedExisting));
+        // Fork Zigerus (4.0.0.90): NormalizeCacheItems keeps the first 150, so order decides what survives. Titles still
+        // in TMDb's lists come first, most popular first; titles that dropped out of the lists fill what is left
+        // (upstream: new titles first, then every existing one in its old order).
+        var merged = newItems.Concat(updatedExisting).ToList();
+        return NormalizeCacheItems(
+            merged.Where(item => refreshedById.ContainsKey(item.TmdbId)).OrderByDescending(item => item.Popularity ?? 0d)
+                .Concat(merged.Where(item => !refreshedById.ContainsKey(item.TmdbId)).OrderByDescending(item => item.Popularity ?? 0d)));
     }
 
     private static List<CacheItem> NormalizeCacheItems(IEnumerable<CacheItem>? items)
@@ -614,8 +654,22 @@ public sealed class CinemaPreRollCacheService
             RatingScore = item.RatingScore,
             RatingSubScore = item.RatingSubScore,
             CertificationCountry = TrimOrEmpty(item.CertificationCountry).ToUpperInvariant(),
-            Adult = item.Adult
+            Adult = item.Adult,
+            Popularity = CleanPopularity(item.Popularity),
+            VoteAverage = item.VoteAverage is double vote && double.IsFinite(vote) && vote >= 0 ? vote : null,
+            VoteCount = item.VoteCount is int count && count >= 0 ? count : null,
+            GenreIds = CleanGenreIds(item.GenreIds)
         };
+    }
+
+    private static double? CleanPopularity(double? value)
+    {
+        return value is double popularity && double.IsFinite(popularity) && popularity >= 0 ? popularity : null;
+    }
+
+    private static List<int> CleanGenreIds(IEnumerable<int>? ids)
+    {
+        return (ids ?? Enumerable.Empty<int>()).Where(id => id > 0).Distinct().ToList();
     }
 
     private static CacheItem MergeCacheItem(CacheItem existing, CacheItem refreshed)
@@ -636,7 +690,11 @@ public sealed class CinemaPreRollCacheService
             RatingScore = refreshed.RatingScore ?? existing.RatingScore,
             RatingSubScore = refreshed.RatingSubScore ?? existing.RatingSubScore,
             CertificationCountry = PreferText(refreshed.CertificationCountry, existing.CertificationCountry).ToUpperInvariant(),
-            Adult = existing.Adult || refreshed.Adult
+            Adult = existing.Adult || refreshed.Adult,
+            Popularity = refreshed.Popularity ?? existing.Popularity,
+            VoteAverage = refreshed.VoteAverage ?? existing.VoteAverage,
+            VoteCount = refreshed.VoteCount ?? existing.VoteCount,
+            GenreIds = refreshed.GenreIds?.Count > 0 ? refreshed.GenreIds.ToList() : (existing.GenreIds ?? new List<int>()).ToList()
         };
     }
 
@@ -1021,6 +1079,22 @@ public sealed class CinemaPreRollCacheService
             existing.FeedRegion = seed.FeedRegion;
         }
 
+        if ((seed.Popularity ?? -1d) > (existing.Popularity ?? -1d))
+        {
+            existing.Popularity = seed.Popularity;
+        }
+
+        if ((seed.VoteCount ?? -1) > (existing.VoteCount ?? -1))
+        {
+            existing.VoteCount = seed.VoteCount;
+            existing.VoteAverage = seed.VoteAverage;
+        }
+
+        if (existing.GenreIds.Count == 0 && seed.GenreIds.Count > 0)
+        {
+            existing.GenreIds = seed.GenreIds.ToList();
+        }
+
         if (string.IsNullOrWhiteSpace(existing.OriginalLanguage) && !string.IsNullOrWhiteSpace(seed.OriginalLanguage))
         {
             existing.OriginalLanguage = seed.OriginalLanguage;
@@ -1211,9 +1285,15 @@ public sealed class CinemaPreRollCacheService
         if (TryGetLocaleSnapshot(fileModel, cacheKey, out snapshot))
         {
             var updatedAt = DateTimeOffset.FromUnixTimeMilliseconds(snapshot.UpdatedAtUtc);
+            // Fork Zigerus (4.0.0.90): a snapshot is fresh for 24 h once it holds any trailers. Upstream also wanted a full
+            // 150, so a locale whose feeds only yield 148 trailers refetched every TMDb list, video and release-date call on
+            // each cache request. An empty snapshot still refreshes on the next request.
+            // A snapshot written before 4.0.0.90 has no popularity on any item: it refreshes once, and if TMDb is down
+            // the stale pool is still served (no CacheVersion bump, which would discard the file).
             if (
                 snapshot.TargetItemCount >= MaxItemsPerLocale &&
-                (snapshot.Items?.Count ?? 0) >= MaxItemsPerLocale &&
+                (snapshot.Items?.Count ?? 0) > 0 &&
+                snapshot.Items!.Any(item => item.Popularity.HasValue) &&
                 DateTimeOffset.UtcNow - updatedAt <= RefreshInterval)
             {
                 return true;
