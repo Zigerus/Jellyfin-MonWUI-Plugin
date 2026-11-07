@@ -22,6 +22,12 @@ import {
   resolveCinemaPreRollLocale
 } from "./cinemaPreRollLocale.js";
 import { faIconHtml } from "./faIcons.js";
+import {
+  TOP10_POP_POOL,
+  drawDailyTop10,
+  localDayKey,
+  rankPopularEntries
+} from "./top10Popular.js";
 import { resolveSliderAssetHref } from "./assetLinks.js";
 import {
   getActiveHomePageEl,
@@ -290,6 +296,10 @@ const TTL_RECENT_MS   = Number.isFinite(config.recentRowsCacheTTLms) ? Math.max(
 const TTL_CONTINUE_MS = Number.isFinite(config.continueRowsCacheTTLms) ? Math.max(5_000, config.continueRowsCacheTTLms|0) : 45_000;
 const TTL_TOP10_MS    = 4 * 60 * 60 * 1000;
 const TOP10_CACHE_POOL_SIZE = 20;
+// Fork Zigerus (4.0.0.92): the Top 10 rows' saved list. A new kind, so a list the old ranking saved is never shown as
+// today's pick; it counts as fresh only when drawn for today's local date and within TTL_TOP10_MS (writeTop10List).
+const TOP10_POP_CACHE_KIND = "top_pop";
+const TOP10_POP_ENDPOINT = "/Plugins/JMSFusion/library-popularity";
 const TOP_RANK_QUERY_POOL_MULTIPLIER = 4;
 const TMDB_TOP_MOVIE_POOL_SIZE = 240;
 const TMDB_TOP_RATED_PAGE_LIMIT = 8;
@@ -2115,6 +2125,171 @@ async function fetchTopRankedUnplayedFirstAcrossParents(userId, type, limit, par
     .filter((item) => item?.Id && !seenIds.has(item.Id));
 
   return [...unseenItems, ...fallbackItems].slice(0, limit);
+}
+
+// Fork Zigerus (4.0.0.92): "Popular now" Top 10 (rules in top10Popular.js; the server half is LibraryPopularityService).
+async function fetchLibraryPopularity(type, parentIds = []) {
+  const endpoint = withServer(TOP10_POP_ENDPOINT) || TOP10_POP_ENDPOINT;
+  const url = new URL(endpoint, window.location.href);
+  url.searchParams.set("type", type);
+  const parents = normalizeIdList(parentIds);
+  if (parents.length) url.searchParams.set("parentIds", parents.join(","));
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    headers: buildTmdbTrailerFetchHeaders()
+  });
+  if (!response.ok) {
+    throw new Error(`library popularity HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+// A show counts as started as soon as one of its episodes is in progress; the series' own PlayedPercentage only moves
+// once an episode is finished.
+async function fetchStartedSeriesIds(userId) {
+  const data = await makeApiRequest(
+    `/Users/${userId}/Items?IncludeItemTypes=Episode&Recursive=true&Filters=IsResumable&Fields=SeriesId&` +
+    `EnableUserData=false&EnableImages=false&Limit=500`
+  );
+  return new Set(
+    (Array.isArray(data?.Items) ? data.Items : [])
+      .map((episode) => String(episode?.SeriesId || "").replace(/-/g, "").toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+// mode "popular": today's draw (up to 10 items, popularity order). "unavailable": the server has no TMDb key, or nothing
+// in the library passes the vote floor; keep the old ranking. "pending": the server's first fill is still running, or the
+// request failed; use the old ranking for this load only.
+async function fetchTopPopularUnplayed(userId, type, parentIds = []) {
+  let payload = null;
+  try {
+    payload = await fetchLibraryPopularity(type, parentIds);
+  } catch (e) {
+    console.warn("recentRows: library popularity fetch failed:", type, e);
+    return { mode: "pending", items: [] };
+  }
+
+  if ((payload?.available ?? payload?.Available) === false) {
+    return { mode: "unavailable", items: [] };
+  }
+  const entries = Array.isArray(payload?.items ?? payload?.Items) ? (payload.items ?? payload.Items) : [];
+  const ranked = rankPopularEntries(entries);
+  const normId = (id) => String(id || "").replace(/-/g, "").toLowerCase();
+  const passed = new Set(ranked.map((entry) => normId(entry.itemId)));
+  // Titles TMDb knows but the floor rejected; the small-library top-up must not bring them back.
+  const failedFloor = new Set(
+    entries.map((entry) => normId(entry?.itemId ?? entry?.ItemId)).filter((id) => id && !passed.has(id))
+  );
+  if (!ranked.length) {
+    return { mode: (payload?.refreshing ?? payload?.Refreshing) ? "pending" : "unavailable", items: [] };
+  }
+
+  const started = type === "Series"
+    ? await fetchStartedSeriesIds(userId).catch(() => new Set())
+    : new Set();
+  const eligible = [];
+  const chunkSize = 60;
+  for (let i = 0; i < ranked.length && eligible.length < TOP10_POP_POOL; i += chunkSize) {
+    const chunk = ranked.slice(i, i + chunkSize);
+    let data = null;
+    try {
+      data = await makeApiRequest(
+        `/Users/${userId}/Items?Ids=${encodeURIComponent(chunk.map((entry) => entry.itemId).join(","))}&` +
+        `Fields=${encodeURIComponent(TOP_RANK_FIELDS)}&EnableUserData=true&` +
+        `ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Logo`
+      );
+    } catch (e) {
+      console.warn("recentRows: popular Top 10 item fetch failed:", type, e);
+      return { mode: "pending", items: [] };
+    }
+    const byId = new Map(
+      (Array.isArray(data?.Items) ? data.Items : [])
+        .filter((item) => item?.Id)
+        .map((item) => [String(item.Id).replace(/-/g, "").toLowerCase(), item])
+    );
+    for (const entry of chunk) {
+      const item = byId.get(entry.itemId.replace(/-/g, "").toLowerCase());
+      if (!item || item.Type !== type) continue;
+      if (hasPlaybackActivity(item)) continue;
+      if (type === "Series" && started.has(String(item.Id).replace(/-/g, "").toLowerCase())) continue;
+      eligible.push(item);
+      if (eligible.length >= TOP10_POP_POOL) break;
+    }
+  }
+
+  try {
+    if (STATE.db && STATE.scope && eligible.length) {
+      await upsertItemsBatch(STATE.db, STATE.scope, eligible);
+    }
+  } catch {}
+
+  const seed = `${userId}|${type}|${normalizeIdList(parentIds).sort().join(",")}|${localDayKey()}`;
+  return { mode: "popular", items: drawDailyTop10(eligible, { seed }), failedFloor, started };
+}
+
+async function fetchTop10RowItems(userId, type, parentIds, metaType) {
+  const popular = await fetchTopPopularUnplayed(userId, type, parentIds);
+  if (popular.mode === "popular") {
+    let items = popular.items;
+    if (items.length < TOP10_ROW_CARD_COUNT) {
+      // A small library (or most of the popular titles watched): fill the row from the old ranking with titles that are
+      // still unwatched and that TMDb has no numbers for. No duplicates, nothing the floor rejected; the row may stay short.
+      const have = new Set(items.map((item) => item?.Id).filter(Boolean));
+      const normId = (id) => String(id || "").replace(/-/g, "").toLowerCase();
+      const extra = await fetchTopRankedUnplayedFirstAcrossParents(userId, type, TOP10_CACHE_POOL_SIZE, parentIds).catch(() => []);
+      const fill = extra.filter((item) =>
+        item?.Id &&
+        !have.has(item.Id) &&
+        !hasPlaybackActivity(item) &&
+        !popular.failedFloor.has(normId(item.Id)) &&
+        !(type === "Series" && popular.started.has(normId(item.Id)))
+      );
+      items = [...items, ...fill].slice(0, TOP10_ROW_CARD_COUNT);
+    }
+    await writeTop10List(metaType, items);
+    return items;
+  }
+
+  const items = await fetchTopRankedUnplayedFirstAcrossParents(userId, type, TOP10_CACHE_POOL_SIZE, parentIds);
+  if (popular.mode === "unavailable") {
+    await writeTop10List(metaType, items);
+  }
+  return items;
+}
+
+// The saved list carries the local date it was drawn for. Row caches are synced to the server per user (ScopedCache), so
+// another device's clock decides its stamp; "fresh" therefore means: drawn for today's local date, saved less than
+// TTL_TOP10_MS ago, and not stamped in the future.
+async function writeTop10List(metaType, items) {
+  if (!STATE.db || !STATE.scope) return;
+  const now = Date.now();
+  try {
+    await setMeta(STATE.db, metaKey(TOP10_POP_CACHE_KIND, metaType) + "|" + STATE.scope, {
+      ids: (Array.isArray(items) ? items : []).map((x) => x?.Id).filter(Boolean),
+      day: localDayKey(),
+      cacheStamp: now,
+      updatedAt: now,
+    });
+  } catch {}
+}
+
+async function loadCachedTop10RowItems(metaType) {
+  if (!STATE.db || !STATE.scope) return { items: [], fresh: false };
+  let rec = null;
+  try {
+    rec = await getMeta(STATE.db, metaKey(TOP10_POP_CACHE_KIND, metaType) + "|" + STATE.scope);
+  } catch {}
+  const ids = Array.isArray(rec?.ids) ? Array.from(new Set(rec.ids.filter(Boolean))) : [];
+  if (!ids.length) return { items: [], fresh: false };
+
+  const age = Date.now() - (Number(rec?.cacheStamp ?? rec?.updatedAt) || 0);
+  const fresh = rec?.day === localDayKey() && age >= -10 * 60 * 1000 && age <= TTL_TOP10_MS;
+  const items = filterCachedTop10PlayableItems(
+    await fetchItemsByIds(ids.slice(0, TOP10_CACHE_POOL_SIZE), { refreshUserData: false })
+  ).slice(0, TOP10_ROW_CARD_COUNT);
+  return { items, fresh: fresh && items.length > 0 };
 }
 
 function buildTmdbMovieLookup(items = []) {
@@ -4848,12 +5023,9 @@ async function initAndRender({ sectionKey = "recentRows", mountState = null } = 
       cardVariant: "top10",
       deferNetworkRender: false,
       fetcher: Object.assign(
-        () => fetchTopRankedUnplayedFirstAcrossParents(userId, "Series", TOP10_CACHE_POOL_SIZE, topSeriesParentIds).then(async (items) => {
-          await writeCachedList("top", topSeriesMetaType, items.map((x) => x?.Id).filter(Boolean));
-          return items;
-        }),
+        () => fetchTop10RowItems(userId, "Series", topSeriesParentIds, topSeriesMetaType),
         {
-          cachedItems: () => loadCachedLocalTop10Items("top", topSeriesMetaType, TTL_TOP10_MS)
+          cachedItems: () => loadCachedTop10RowItems(topSeriesMetaType)
         }
       ),
       onSeeAll: () => openLatestPage("Series")
@@ -4875,12 +5047,9 @@ async function initAndRender({ sectionKey = "recentRows", mountState = null } = 
       cardVariant: "top10",
       deferNetworkRender: false,
       fetcher: Object.assign(
-        () => fetchTopRankedUnplayedFirstAcrossParents(userId, "Movie", TOP10_CACHE_POOL_SIZE, topMovieParentIds).then(async (items) => {
-          await writeCachedList("top", topMovieMetaType, items.map((x) => x?.Id).filter(Boolean));
-          return items;
-        }),
+        () => fetchTop10RowItems(userId, "Movie", topMovieParentIds, topMovieMetaType),
         {
-          cachedItems: () => loadCachedLocalTop10Items("top", topMovieMetaType, TTL_TOP10_MS)
+          cachedItems: () => loadCachedTop10RowItems(topMovieMetaType)
         }
       ),
       onSeeAll: () => openLatestPage("Movie")

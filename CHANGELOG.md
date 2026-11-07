@@ -5,6 +5,15 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.92 (Zigerus build, Jellyfin 12)
+
+### Changes
+- **"Top 10 Movies" and "Top 10 Series" show what is popular right now among the titles you haven't watched, and change every day.** The old ranking blended five library queries (TMDb rating twice, newest release, newest added, and the genres of whatever was in progress) and never rotated, so the rows settled on the same highly rated classics until each one was marked watched, and an unrated new title could slip in on newness alone.
+- The server now keeps TMDb's `popularity`, `vote_average` and `vote_count` for every movie and show in the library that has a TMDb id (`LibraryPopularityService`, file `tmdb-library-popularity.json`). It fetches one title at a time, 8 in parallel, and refreshes in the background once the data is a day old; a request never waits for it. New signed-in endpoint `GET /Plugins/JMSFusion/library-popularity?type=Movie|Series[&parentIds=…]` lists the numbers for the titles the signed-in user can see.
+- The page ranks the user's unwatched films, or the shows they haven't started, by popularity. A show counts as started once any episode is played or in progress. A title needs at least 25 TMDb votes and an average of 6.0 or more, and two versions of one film count once. Each day it draws ten from the top 30, weighted by rank (weight e^(−rank/6)), and shows them in popularity order. The draw is seeded by the user, the row and the local date, so the row is the same all day on every device and different the next day. Over 20,000 simulated days, #1 is in the row 93% of the time, #10 47%, #30 2%, and about six titles carry over from one day to the next.
+- The saved list (row cache kind `top_pop`) records the local date it was drawn for and is fresh only on that date and for at most 4 hours.
+- With no TMDb key on the server, the rows keep the old ranking. While the server's first fill is still running, they use it for that page load only and save nothing, so the next load asks again. A small library is topped up from the old ranking, but only with unwatched titles that have no TMDb numbers.
+
 ## 4.0.0.91 (Zigerus build, Jellyfin 12)
 
 ### Security

@@ -16,6 +16,7 @@ namespace Jellyfin.Plugin.JMSFusion
         {
             services.AddSingleton<TrailerAutomationService>();
             services.AddSingleton<CinemaPreRollCacheService>();
+            services.AddSingleton<LibraryPopularityService>();
             services.AddSingleton<ScopedCacheJsonService>();
             services.AddHostedService<TrailerWatcher>();
             services.AddHostedService<AccessRelockService>();
