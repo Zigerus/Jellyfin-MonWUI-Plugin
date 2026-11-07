@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.88 (Zigerus build, Jellyfin 12)
+
+### Changes
+- **The release ribbon on "Featured Upcoming Movies" cards says which state it shows**: `.tmdb-trailer-ribbon` now also carries `tmdb-trailer-ribbon--upcoming` or `tmdb-trailer-ribbon--now-playing` and a matching `data-trailer-state`, so a theme can style Coming Soon and Now Playing apart. The default look does not change.
+
 ## 4.0.0.87 (Zigerus build, Jellyfin 12)
 
 ### Changes

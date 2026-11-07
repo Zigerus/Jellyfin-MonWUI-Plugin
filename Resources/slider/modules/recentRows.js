@@ -2747,9 +2747,12 @@ function createRecommendationCard(item, serverId, {
   const trailerTypeLabel = String(config.languageLabels.tmdbTrailerRibbon || typeLabel || config.languageLabels.trailer || "Trailer").trim();
   const trailerRibbonLabel = trailerReleaseLabel || trailerTypeLabel;
   const trailerScore = Number(item?.CommunityRating);
+  // Fork Zigerus (4.0.0.88): the ribbon says which release state it shows (a class and data-trailer-state), so a theme can
+  // style Coming Soon and Now Playing apart; before this both carried the same class and only their text differed.
+  const trailerStateKey = item?.__tmdbTrailerState === "nowPlaying" ? "now-playing" : (item?.__tmdbTrailerState === "upcoming" ? "upcoming" : "");
   const trailerRibbonHtml = isTrailerVariant
     ? `
-      <div class="tmdb-trailer-ribbon" aria-hidden="true">
+      <div class="tmdb-trailer-ribbon${trailerStateKey ? ` tmdb-trailer-ribbon--${trailerStateKey}` : ""}" data-trailer-state="${trailerStateKey}" aria-hidden="true">
         ${faIconHtml("clapperboard", "tmdb-trailer-ribbon__icon")}
         <span>${escapeHtml(trailerRibbonLabel)}</span>
       </div>
