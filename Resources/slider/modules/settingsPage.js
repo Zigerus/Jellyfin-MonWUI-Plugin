@@ -152,6 +152,8 @@ export function createSettingsModal() {
     const queryTab = createTab('query', 'fa-code', labels.queryStringInput || 'Api Sorgu Ayarları');
     const musicTab = createTab('music', 'fa-music', labels.gmmpSettings || 'GMMP Ayarları');
     const studioTab = createTab('studio', 'fa-building', labels.studioHubsSettings || 'Stüdyo Koleksiyonları Ayarları');
+    // Fork Zigerus (4.0.0.93): every home-row setting, plus the new tag rows, on one tab right under Slider.
+    const homeRowsTab = createTab('homerows', 'fa-table-list', labels.homeRowsTab || 'Home Rows');
     const profileChooserTab = createTab('profile-chooser', 'fa-user-group', labels.profileChooserHeader || 'Kim İzliyor Ayarları');
     const pauseTab = createTab('pause', 'fa-pause', labels.pauseSettings || 'Duraklatma Ekranı Ayarları');
     const watchlistSettingsTab = createTab('watchlist-settings', 'fa-bookmark', labels.watchlistSettingsTab || 'İzleme Listesi Ayarları');
@@ -176,7 +178,7 @@ export function createSettingsModal() {
     const aboutTab = createTab('about', 'fa-circle-info', labels.aboutHeader || 'Hakkında');
 
     const tabs = [
-        mainTab, sliderTab, queryTab, musicTab, studioTab, profileChooserTab,
+        mainTab, sliderTab, homeRowsTab, queryTab, musicTab, studioTab, profileChooserTab,
         pauseTab, watchlistSettingsTab, hoverTab, cinemaPreRollTab, trailersTab, notificationsTab, serrTab, detailsModalTab,
         avatarTab, parentalPinTab, accessControlTab, positionTab, dbManagementTab, exporterTab, aboutTab
     ].filter(Boolean);
@@ -193,6 +195,8 @@ export function createSettingsModal() {
     const cinemaPreRollPanel = createCinemaPreRollPanel(config, labels);
     const trailersPanel = createTrailersPanel(config, labels);
     const studioPanel = createStudioHubsPanel(config, labels);
+    const homeRowsPanel = studioPanel.homeRowsPanel || document.createElement('div');
+    if (!homeRowsPanel.id) homeRowsPanel.id = 'homerows-panel';
     const avatarPanel = createAvatarPanel(config, labels);
     const statusRatingPanel = createStatusRatingPanel(config, labels);
     const actorPanel = createActorPanel(config, labels);
@@ -246,7 +250,7 @@ export function createSettingsModal() {
     });
 
     [
-        mainPanel, sliderPanel, queryPanel, musicPanel, studioPanel, profileChooserPanel,
+        mainPanel, sliderPanel, homeRowsPanel, queryPanel, musicPanel, studioPanel, profileChooserPanel,
         pausePanel, watchlistSettingsPanel, hoverPanel, cinemaPreRollPanel, trailersPanel, notificationsPanel, serrPanel, detailsModalPanel,
         avatarPanel, parentalPinPanel, accessControlPanel, positionPanel, dbManagementPanel, exporterPanel, aboutPanel
     ].filter(Boolean).forEach(panel => {
@@ -255,14 +259,14 @@ export function createSettingsModal() {
     mainPanel.style.display = 'block';
 
     const panels = [
-        mainPanel, sliderPanel, queryPanel, musicPanel, studioPanel, profileChooserPanel,
+        mainPanel, sliderPanel, homeRowsPanel, queryPanel, musicPanel, studioPanel, profileChooserPanel,
         pausePanel, watchlistSettingsPanel, hoverPanel, cinemaPreRollPanel, trailersPanel, notificationsPanel, serrPanel, detailsModalPanel,
         avatarPanel, parentalPinPanel, accessControlPanel, positionPanel, dbManagementPanel, exporterPanel, aboutPanel
     ].filter(Boolean);
     tabContent.append(...panels);
 
     const interactiveTabs = [
-        mainTab, sliderTab, queryTab, musicTab, studioTab, profileChooserTab,
+        mainTab, sliderTab, homeRowsTab, queryTab, musicTab, studioTab, profileChooserTab,
         pauseTab, watchlistSettingsTab, hoverTab, cinemaPreRollTab, trailersTab, notificationsTab, serrTab, detailsModalTab,
         avatarTab, parentalPinTab, accessControlTab, positionTab, dbManagementTab, exporterTab, aboutTab
     ].filter(Boolean);

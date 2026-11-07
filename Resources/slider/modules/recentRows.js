@@ -28,6 +28,16 @@ import {
   localDayKey,
   rankPopularEntries
 } from "./top10Popular.js";
+import {
+  TAG_ROW_RANDOM_CARDS,
+  TAG_ROW_RATING_CARDS,
+  getActiveTagRows,
+  rankTagRowByRating,
+  seededShuffle,
+  tagRowCacheType,
+  tagRowDailySeed,
+  tagRowIncludeTypes
+} from "./tagRows.js";
 import { resolveSliderAssetHref } from "./assetLinks.js";
 import {
   getActiveHomePageEl,
@@ -143,6 +153,8 @@ function getRecentRowsRuntimeConfig(source = getLiveConfig()) {
     enableTop10Series: enableRecentMaster && (cfg.enableTop10SeriesRow !== false),
     enableTmdbTopMovies: enableRecentMaster && (cfg.enableTmdbTopMoviesRow !== false),
     enableTmdbTrailers: enableRecentMaster && (cfg.enableTmdbTrailerRows !== false),
+    // Fork Zigerus (4.0.0.93): tag rows hang off the home-sections master only, not off "Recently added".
+    activeTagRows: homeSectionsConfig.enableTagRowsSection ? getActiveTagRows(cfg.tagRows) : [],
     enableRecentMovies: enableRecentMaster && (cfg.enableRecentMoviesRow !== false),
     enableRecentSeries: enableRecentMaster && (cfg.enableRecentSeriesRow !== false),
     enableRecentEpisodes: enableRecentMaster && (cfg.enableRecentEpisodesRow !== false),
@@ -289,6 +301,12 @@ const RECENT_ROW_SECTION_META = Object.freeze({
     id: "nextup-rows",
     flag: "__jmsNextUpRowsDone",
     event: "jms:nextup-rows-done"
+  },
+  // Fork Zigerus (4.0.0.93): every tag row in season, stacked in the user's list order.
+  tagRows: {
+    id: "tag-rows",
+    flag: "__jmsTagRowsDone",
+    event: "jms:tag-rows-done"
   }
 });
 
@@ -449,6 +467,10 @@ function hasTmdbTrailerRowsSectionEnabled(runtimeCfg) {
   return runtimeCfg.enableTmdbTrailers === true;
 }
 
+function hasTagRowsSectionEnabled(runtimeCfg) {
+  return Array.isArray(runtimeCfg.activeTagRows) && runtimeCfg.activeTagRows.length > 0;
+}
+
 function hasRecentRowsSectionEnabled(runtimeCfg) {
   return !!(
     runtimeCfg.enableRecentMovies ||
@@ -479,6 +501,7 @@ function getOrderedRecentRowSectionKeys(cfg, runtimeCfg) {
   if (hasTop10MovieRowsSectionEnabled(runtimeCfg)) enabled.add("top10MovieRows");
   if (hasTmdbTopMoviesRowsSectionEnabled(runtimeCfg)) enabled.add("tmdbTopMoviesRows");
   if (hasTmdbTrailerRowsSectionEnabled(runtimeCfg)) enabled.add("tmdbTrailerRows");
+  if (hasTagRowsSectionEnabled(runtimeCfg)) enabled.add("tagRows");
   if (hasRecentRowsSectionEnabled(runtimeCfg)) enabled.add("recentRows");
   if (hasContinueRowsSectionEnabled(runtimeCfg)) enabled.add("continueRows");
   if (hasNextUpRowsSectionEnabled(runtimeCfg)) enabled.add("nextUpRows");
@@ -2263,10 +2286,14 @@ async function fetchTop10RowItems(userId, type, parentIds, metaType) {
 // another device's clock decides its stamp; "fresh" therefore means: drawn for today's local date, saved less than
 // TTL_TOP10_MS ago, and not stamped in the future.
 async function writeTop10List(metaType, items) {
+  return writeDatedRowList(TOP10_POP_CACHE_KIND, metaType, items);
+}
+
+async function writeDatedRowList(kind, metaType, items) {
   if (!STATE.db || !STATE.scope) return;
   const now = Date.now();
   try {
-    await setMeta(STATE.db, metaKey(TOP10_POP_CACHE_KIND, metaType) + "|" + STATE.scope, {
+    await setMeta(STATE.db, metaKey(kind, metaType) + "|" + STATE.scope, {
       ids: (Array.isArray(items) ? items : []).map((x) => x?.Id).filter(Boolean),
       day: localDayKey(),
       cacheStamp: now,
@@ -2276,20 +2303,82 @@ async function writeTop10List(metaType, items) {
 }
 
 async function loadCachedTop10RowItems(metaType) {
+  return loadDatedRowList(TOP10_POP_CACHE_KIND, metaType, {
+    pool: TOP10_CACHE_POOL_SIZE,
+    limit: TOP10_ROW_CARD_COUNT,
+    transform: filterCachedTop10PlayableItems
+  });
+}
+
+async function loadDatedRowList(kind, metaType, { pool, limit, transform = null } = {}) {
   if (!STATE.db || !STATE.scope) return { items: [], fresh: false };
   let rec = null;
   try {
-    rec = await getMeta(STATE.db, metaKey(TOP10_POP_CACHE_KIND, metaType) + "|" + STATE.scope);
+    rec = await getMeta(STATE.db, metaKey(kind, metaType) + "|" + STATE.scope);
   } catch {}
   const ids = Array.isArray(rec?.ids) ? Array.from(new Set(rec.ids.filter(Boolean))) : [];
   if (!ids.length) return { items: [], fresh: false };
 
   const age = Date.now() - (Number(rec?.cacheStamp ?? rec?.updatedAt) || 0);
   const fresh = rec?.day === localDayKey() && age >= -10 * 60 * 1000 && age <= TTL_TOP10_MS;
-  const items = filterCachedTop10PlayableItems(
-    await fetchItemsByIds(ids.slice(0, TOP10_CACHE_POOL_SIZE), { refreshUserData: false })
-  ).slice(0, TOP10_ROW_CARD_COUNT);
+  let items = await fetchItemsByIds(ids.slice(0, pool || ids.length), { refreshUserData: false });
+  if (typeof transform === "function") items = transform(items);
+  items = (Array.isArray(items) ? items : []).slice(0, limit || items.length);
   return { items, fresh: fresh && items.length > 0 };
+}
+
+// Fork Zigerus (4.0.0.93): tag rows (rules in tagRows.js). One query per row: any of its tags, and any of its genres when
+// set (Jellyfin: OR within Tags= and within Genres=, AND across them); watched titles count.
+const TAG_ROW_CACHE_KIND = "tag";
+const TAG_ROW_FETCH_LIMIT = 300;
+
+async function fetchTagRowItems(userId, row) {
+  const types = tagRowIncludeTypes(row);
+  const url =
+    `/Users/${userId}/Items?IncludeItemTypes=${encodeURIComponent(types.join(","))}&Recursive=true&` +
+    `Tags=${encodeURIComponent(row.tags.join("|"))}&` +
+    (row.genres.length ? `Genres=${encodeURIComponent(row.genres.join("|"))}&` : ``) +
+    `Fields=${encodeURIComponent(TOP_RANK_FIELDS)}&EnableUserData=true&SortBy=SortName&SortOrder=Ascending&` +
+    `Limit=${TAG_ROW_FETCH_LIMIT}&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Logo`;
+  const data = await makeApiRequest(url);
+  const candidates = uniqById(Array.isArray(data?.Items) ? data.Items : []).filter((item) => types.includes(item?.Type));
+
+  let items;
+  if (row.order === "rating") {
+    const numbers = new Map();
+    for (const type of types) {
+      try {
+        const payload = await fetchLibraryPopularity(type, []);
+        for (const entry of (payload?.items ?? payload?.Items ?? [])) {
+          const id = String(entry?.itemId ?? entry?.ItemId ?? "").replace(/-/g, "").toLowerCase();
+          if (!id) continue;
+          numbers.set(id, {
+            voteAverage: Number(entry?.voteAverage ?? entry?.VoteAverage),
+            voteCount: Number(entry?.voteCount ?? entry?.VoteCount),
+            tmdbId: Number(entry?.tmdbId ?? entry?.TmdbId) || 0
+          });
+        }
+      } catch (e) {
+        console.warn("recentRows: tag row popularity fetch failed:", type, e);
+      }
+    }
+    items = rankTagRowByRating(candidates, numbers).slice(0, TAG_ROW_RATING_CARDS);
+  } else {
+    items = seededShuffle(candidates, tagRowDailySeed(userId, row)).slice(0, TAG_ROW_RANDOM_CARDS);
+  }
+
+  try {
+    if (STATE.db && STATE.scope && items.length) {
+      await upsertItemsBatch(STATE.db, STATE.scope, items);
+    }
+  } catch {}
+  await writeDatedRowList(TAG_ROW_CACHE_KIND, tagRowCacheType(row), items);
+  return items;
+}
+
+function loadCachedTagRowItems(row) {
+  const limit = row.order === "rating" ? TAG_ROW_RATING_CARDS : TAG_ROW_RANDOM_CARDS;
+  return loadDatedRowList(TAG_ROW_CACHE_KIND, tagRowCacheType(row), { pool: limit, limit });
 }
 
 function buildTmdbMovieLookup(items = []) {
@@ -4255,7 +4344,8 @@ function isDeferredRecentRowsSection(sectionKey) {
     sectionKey === "top10SeriesRows" ||
     sectionKey === "top10MovieRows" ||
     sectionKey === "tmdbTopMoviesRows" ||
-    sectionKey === "tmdbTrailerRows"
+    sectionKey === "tmdbTrailerRows" ||
+    sectionKey === "tagRows"
   );
 }
 
@@ -4988,6 +5078,7 @@ async function initAndRender({ sectionKey = "recentRows", mountState = null } = 
     const top10MoviePlans  = [];
     const tmdbTopMoviePlans = [];
     const tmdbTrailerPlans = [];
+    const tagRowPlans      = [];
     const recentPlans      = [];
     const continuePlans    = [];
     const nextUpPlans      = [];
@@ -5007,6 +5098,26 @@ async function initAndRender({ sectionKey = "recentRows", mountState = null } = 
         appendDone,
       });
     };
+
+  for (const tagRow of (sectionKey === "tagRows" ? runtimeCfg.activeTagRows : [])) {
+    const byRating = tagRow.order === "rating";
+    pushPlan(tagRowPlans, () => buildManagedSection({
+      titleText: tagRow.title || tagRow.tags.join(", "),
+      badgeType: tagRow.show === "Series" ? "series" : "movie",
+      heroLabel: "",
+      cardCount: byRating ? TAG_ROW_RATING_CARDS : TAG_ROW_RANDOM_CARDS,
+      showProgress: false,
+      hideHero: true,
+      sectionClassName: byRating ? "top10-section tag-row-section" : "tag-row-section",
+      rowClassName: byRating ? "top10-row tag-row" : "tag-row",
+      cardVariant: byRating ? "top10" : "default",
+      deferNetworkRender: false,
+      fetcher: Object.assign(
+        () => fetchTagRowItems(userId, tagRow),
+        { cachedItems: () => loadCachedTagRowItems(tagRow) }
+      )
+    }));
+  }
 
   if (runtimeCfg.enableTop10Series) {
     const topSeriesParentIds = getTopSeriesParentIds();
@@ -5576,6 +5687,7 @@ async function initAndRender({ sectionKey = "recentRows", mountState = null } = 
       sectionKey === "top10MovieRows" ? [...top10MoviePlans] :
       sectionKey === "tmdbTopMoviesRows" ? [...tmdbTopMoviePlans] :
       sectionKey === "tmdbTrailerRows" ? [...tmdbTrailerPlans] :
+      sectionKey === "tagRows" ? [...tagRowPlans] :
       sectionKey === "continueRows" ? [...continuePlans] :
       sectionKey === "nextUpRows" ? [...nextUpPlans] :
       [...recentPlans, ...episodePlans]

@@ -11,6 +11,7 @@ import {
   getNativeHomeSectionOrderLabel
 } from "../homeSectionNative.js";
 import { createCheckbox, createSection, createNumberInput } from "./shared.js";
+import { createTagRowsSection } from "./tagRowsSettings.js";
 import { applySettings } from "./applySettings.js";
 import { fetchItemDetails, makeApiRequest } from "../../../Plugins/JMSFusion/runtime/api.js";
 import {
@@ -325,6 +326,9 @@ function getManagedHomeSectionOrderLabel(name, config, labels) {
   }
   if (name === "tmdbTopMoviesRows") {
     return labels?.tmdbTopMovies || "TMDb En Iyi Filmler";
+  }
+  if (name === "tagRows") {
+    return labels?.tagRowsOrderLabel || "Tag rows";
   }
   if (name === "tmdbTrailerRows") {
     return labels?.tmdbTrailerRowsTitle || "TMDb Vizyona Yakın Fragmanlar";
@@ -1807,9 +1811,11 @@ export function createStudioHubsPanel(config, labels) {
     }
   })();
 
+  // Fork Zigerus (4.0.0.93): from here on the home-row settings go to the Home Rows tab (rowsSection), not the studio tab.
+  const rowsSection = createSection();
   const subheading = document.createElement('h3');
   subheading.textContent = labels?.personalRecommendations || 'Kişisel Öneriler';
-  section.appendChild(subheading);
+  rowsSection.appendChild(subheading);
 
   const cardTitleModeWrap = document.createElement("div");
   cardTitleModeWrap.className = "input-container";
@@ -1856,14 +1862,14 @@ export function createStudioHubsPanel(config, labels) {
   }
 
   cardTitleModeWrap.appendChild(cardTitleModeSelect);
-  section.appendChild(cardTitleModeWrap);
+  rowsSection.appendChild(cardTitleModeWrap);
 
   const enableForYouCheckbox = createCheckbox(
     'enablePersonalRecommendations',
     labels?.enableForYou || config.languageLabels.enableForYou || 'Sana Özel Koleksiyonları Etkinleştir',
     config.enablePersonalRecommendations
   );
-  section.appendChild(enableForYouCheckbox);
+  rowsSection.appendChild(enableForYouCheckbox);
 
   const ratingWrap = createNumberInput(
    'studioHubsMinRating',
@@ -1873,7 +1879,7 @@ export function createStudioHubsPanel(config, labels) {
    10,
    0.1
   );
-  section.appendChild(ratingWrap);
+  rowsSection.appendChild(ratingWrap);
 
   const personalcountWrap = createNumberInput(
     'personalRecsCardCount',
@@ -1882,26 +1888,26 @@ export function createStudioHubsPanel(config, labels) {
     1,
     20
   );
-  section.appendChild(personalcountWrap);
+  rowsSection.appendChild(personalcountWrap);
 
   const raHeading = document.createElement('h3');
   raHeading.textContent =
     labels?.recentAndContinueHeading ||
     'Son Eklenenler & İzlemeye Devam Et';
-  section.appendChild(raHeading);
+  rowsSection.appendChild(raHeading);
 
   const enableRecentRows = createCheckbox(
     'enableRecentRows',
     labels?.enableRecentRows || 'Son eklenenler (master) satırlarını göster',
     config.enableRecentRows !== false
   );
-  section.appendChild(enableRecentRows);
+  rowsSection.appendChild(enableRecentRows);
 
   const recentSubWrap = document.createElement("div");
   recentSubWrap.style.paddingLeft = "8px";
   recentSubWrap.style.borderLeft = "2px solid #0002";
   recentSubWrap.style.marginBottom = "10px";
-  section.appendChild(recentSubWrap);
+  rowsSection.appendChild(recentSubWrap);
 
   const showRecentRowsHeroCards = createCheckbox(
     'showRecentRowsHeroCards',
@@ -2157,14 +2163,14 @@ export function createStudioHubsPanel(config, labels) {
     labels?.enableContinueMovies || 'İzlemeye devam et (Filmler) satırını göster',
     !!config.enableContinueMovies
   );
-  section.appendChild(enableContinueMovies);
+  rowsSection.appendChild(enableContinueMovies);
 
   const showContinueMoviesHeroCards = createCheckbox(
     'showContinueMoviesHeroCards',
     labels?.showContinueMoviesHeroCards || 'Hero kartını göster (İzlemeye Devam Et - Filmler)',
     config.showContinueMoviesHeroCards !== false
   );
-  section.appendChild(showContinueMoviesHeroCards);
+  rowsSection.appendChild(showContinueMoviesHeroCards);
 
   const continueMoviesCountWrap = createNumberInput(
     'continueMoviesCardCount',
@@ -2173,21 +2179,21 @@ export function createStudioHubsPanel(config, labels) {
     1,
     20
   );
-  section.appendChild(continueMoviesCountWrap);
+  rowsSection.appendChild(continueMoviesCountWrap);
 
   const enableContinueSeries = createCheckbox(
     'enableContinueSeries',
     labels?.enableContinueSeries || 'İzlemeye devam et (Diziler) satırını göster',
     !!config.enableContinueSeries
   );
-  section.appendChild(enableContinueSeries);
+  rowsSection.appendChild(enableContinueSeries);
 
   const showContinueSeriesHeroCards = createCheckbox(
     'showContinueSeriesHeroCards',
     labels?.showContinueSeriesHeroCards || 'Hero kartını göster (İzlemeye Devam Et - Diziler)',
     config.showContinueSeriesHeroCards !== false
   );
-  section.appendChild(showContinueSeriesHeroCards);
+  rowsSection.appendChild(showContinueSeriesHeroCards);
 
   const continueSeriesCountWrap = createNumberInput(
     'continueSeriesCardCount',
@@ -2196,7 +2202,7 @@ export function createStudioHubsPanel(config, labels) {
     1,
     20
   );
-  section.appendChild(continueSeriesCountWrap);
+  rowsSection.appendChild(continueSeriesCountWrap);
 
   const continueMoviesCb = getCb(enableContinueMovies);
   const continueMoviesHeroCb = getCb(showContinueMoviesHeroCards);
@@ -2225,7 +2231,7 @@ export function createStudioHubsPanel(config, labels) {
   movieLibBox.style.paddingLeft = "8px";
   movieLibBox.style.borderLeft = "2px solid #0002";
   movieLibBox.style.marginBottom = "10px";
-  section.appendChild(movieLibBox);
+  rowsSection.appendChild(movieLibBox);
 
   const splitMovieCb = splitMovieLibRows?.querySelector?.('input[type="checkbox"]');
   function syncMovieLibBoxVisibility() {
@@ -2246,7 +2252,7 @@ export function createStudioHubsPanel(config, labels) {
   tvLibBox.style.paddingLeft = "8px";
   tvLibBox.style.borderLeft = "2px solid #0002";
   tvLibBox.style.marginBottom = "10px";
-  section.appendChild(tvLibBox);
+  rowsSection.appendChild(tvLibBox);
 
   const splitCb = splitTvLibRows?.querySelector?.('input[type="checkbox"]');
   function syncTvLibBoxVisibility() {
@@ -2584,27 +2590,27 @@ export function createStudioHubsPanel(config, labels) {
   otherLibsHeading.style.fontWeight = "800";
   otherLibsHeading.style.margin = "14px 0 6px";
   otherLibsHeading.textContent = labels?.otherLibrariesHeading || "Diğer Kütüphaneler";
-  section.appendChild(otherLibsHeading);
+  rowsSection.appendChild(otherLibsHeading);
 
   const enableOtherLibRows = createCheckbox(
     "enableOtherLibRows",
     labels?.enableOtherLibRows || "Diğer kütüphane bölümleirni göster (Son Eklenen / Devam / Bölüm)",
     !!config.enableOtherLibRows
   );
-  section.appendChild(enableOtherLibRows);
+  rowsSection.appendChild(enableOtherLibRows);
 
   const showOtherLibrariesHeroCards = createCheckbox(
     "showOtherLibrariesHeroCards",
     labels?.showOtherLibrariesHeroCards || "Hero kartını göster (Diğer Kütüphaneler)",
     config.showOtherLibrariesHeroCards !== false
   );
-  section.appendChild(showOtherLibrariesHeroCards);
+  rowsSection.appendChild(showOtherLibrariesHeroCards);
 
   const otherLibBox = document.createElement("div");
   otherLibBox.style.paddingLeft = "8px";
   otherLibBox.style.borderLeft = "2px solid #0002";
   otherLibBox.style.marginBottom = "10px";
-  section.appendChild(otherLibBox);
+  rowsSection.appendChild(otherLibBox);
 
   // Fork ParticularFlix: uma caixa por tipo de fileira de "Outras bibliotecas"
   const otherRecentEnabled = createCheckbox(
@@ -3026,10 +3032,25 @@ export function createStudioHubsPanel(config, labels) {
   });
 
   panel.appendChild(section);
-  panel.appendChild(becauseYouWatchedSection);
-  panel.appendChild(genreSection);
-  panel.appendChild(dirSection);
-  panel.appendChild(managedOrderSection);
+
+  // Fork Zigerus (4.0.0.93): every home-row setting lives on its own "Home Rows" tab (Nathan couldn't find them under
+  // Studio Collections). Same controls and names, so applySettings, which reads the whole form, saves them unchanged.
+  const homeRowsPanel = document.createElement('div');
+  homeRowsPanel.id = 'homerows-panel';
+  homeRowsPanel.className = 'setting-item';
+  const homeRowsIntro = document.createElement('p');
+  homeRowsIntro.className = 'description-text2 homerows-intro';
+  homeRowsIntro.textContent =
+    labels?.homeRowsIntro ||
+    'Every row MonWUI adds to the home page, in one place. The order they appear in is set at the end of this tab.';
+  homeRowsPanel.appendChild(homeRowsIntro);
+  homeRowsPanel.appendChild(createTagRowsSection(config, labels));
+  homeRowsPanel.appendChild(rowsSection);
+  homeRowsPanel.appendChild(becauseYouWatchedSection);
+  homeRowsPanel.appendChild(genreSection);
+  homeRowsPanel.appendChild(dirSection);
+  homeRowsPanel.appendChild(managedOrderSection);
+  panel.homeRowsPanel = homeRowsPanel;
 
   return panel;
 }

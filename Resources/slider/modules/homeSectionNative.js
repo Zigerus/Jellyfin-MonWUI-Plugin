@@ -11,6 +11,7 @@ const MANAGED_HOME_SECTION_IDS = new Set([
   "top10-movie-rows",
   "tmdb-top-movie-rows",
   "tmdb-trailer-rows",
+  "tag-rows",
   "genre-hubs",
   "director-rows",
   "recent-rows",
@@ -29,6 +30,7 @@ const MANAGED_HOME_SECTION_PREFIXES = Object.freeze([
   ["top10-movie-rows--", "top10MovieRows"],
   ["tmdb-top-movie-rows--", "tmdbTopMoviesRows"],
   ["tmdb-trailer-rows--", "tmdbTrailerRows"],
+  ["tag-rows--", "tagRows"],
 ]);
 const NATIVE_HOME_SECTION_SNAPSHOT_KEY = "jms:managedHomeSectionNativeSnapshot:v1";
 const NATIVE_TITLE_SELECTORS = [
@@ -81,6 +83,7 @@ function getManagedHomeSectionKey(el) {
   if (id === "top10-movie-rows") return "top10MovieRows";
   if (id === "tmdb-top-movie-rows") return "tmdbTopMoviesRows";
   if (id === "tmdb-trailer-rows") return "tmdbTrailerRows";
+  if (id === "tag-rows") return "tagRows";
   if (id === "recent-rows") return "recentRows";
   if (id === "continue-rows") return "continueRows";
   if (id === "nextup-rows") return "nextUpRows";

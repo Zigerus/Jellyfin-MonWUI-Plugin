@@ -452,6 +452,7 @@ function getSectionState(source = null) {
     top10MovieRows: runtime.enableTop10MovieRowsSection === true,
     tmdbTopMoviesRows: runtime.enableTmdbTopMoviesRowsSection === true,
     tmdbTrailerRows: runtime.enableTmdbTrailerRowsSection === true,
+    tagRows: runtime.enableTagRowsSection === true,
     recentRows: runtime.enableRecentRowsSection === true,
     continueRows: runtime.enableContinueRowsSection === true,
     nextUpRows: runtime.enableNextUpRowsSection === true,
@@ -507,6 +508,7 @@ function hasSectionReady(key) {
     if (key === "top10MovieRows") return window.__jmsTop10MovieRowsDone === true;
     if (key === "tmdbTopMoviesRows") return window.__jmsTmdbTopMoviesRowsDone === true;
     if (key === "tmdbTrailerRows") return window.__jmsTmdbTrailerRowsDone === true;
+    if (key === "tagRows") return window.__jmsTagRowsDone === true;
     if (key === "recentRows") return window.__jmsRecentRowsDone === true;
     if (key === "continueRows") return window.__jmsContinueRowsDone === true;
     if (key === "nextUpRows") return window.__jmsNextUpRowsDone === true;
@@ -526,6 +528,7 @@ function getSectionReadyEvents(key) {
   if (key === "top10MovieRows") return ["jms:top10-movie-rows-done"];
   if (key === "tmdbTopMoviesRows") return ["jms:tmdb-top-movie-rows-done"];
   if (key === "tmdbTrailerRows") return ["jms:tmdb-trailer-rows-done"];
+  if (key === "tagRows") return ["jms:tag-rows-done"];
   if (key === "recentRows") return ["jms:recent-rows-done"];
   if (key === "continueRows") return ["jms:continue-rows-done"];
   if (key === "nextUpRows") return ["jms:nextup-rows-done"];
@@ -601,6 +604,13 @@ function hasSectionRenderableContent(key) {
     );
   }
 
+  if (key === "tagRows") {
+    return hasRenderableManagedSections(
+      "tag-rows--",
+      ".recent-row-section .personal-recs-card:not(.skeleton), .recent-row-section .no-recommendations"
+    );
+  }
+
   if (key === "recentRows") {
     return hasRenderableManagedSections(
       "recent-rows--",
@@ -658,6 +668,7 @@ const COMPLETION_GATED_SECTION_KEYS = new Set([
   "top10MovieRows",
   "tmdbTopMoviesRows",
   "tmdbTrailerRows",
+  "tagRows",
   "recentRows",
   "continueRows",
   "nextUpRows",
@@ -680,6 +691,7 @@ function hasSectionCompleted(key) {
     if (key === "top10MovieRows") return window.__jmsTop10MovieRowsDone === true;
     if (key === "tmdbTopMoviesRows") return window.__jmsTmdbTopMoviesRowsDone === true;
     if (key === "tmdbTrailerRows") return window.__jmsTmdbTrailerRowsDone === true;
+    if (key === "tagRows") return window.__jmsTagRowsDone === true;
     if (key === "recentRows") return window.__jmsRecentRowsDone === true;
     if (key === "continueRows") return window.__jmsContinueRowsDone === true;
     if (key === "nextUpRows") return window.__jmsNextUpRowsDone === true;
@@ -697,6 +709,7 @@ function getSectionCompletionEvents(key) {
   if (key === "top10MovieRows") return ["jms:top10-movie-rows-done"];
   if (key === "tmdbTopMoviesRows") return ["jms:tmdb-top-movie-rows-done"];
   if (key === "tmdbTrailerRows") return ["jms:tmdb-trailer-rows-done"];
+  if (key === "tagRows") return ["jms:tag-rows-done"];
   if (key === "recentRows") return ["jms:recent-rows-done"];
   if (key === "continueRows") return ["jms:continue-rows-done"];
   if (key === "nextUpRows") return ["jms:nextup-rows-done"];
@@ -1375,6 +1388,9 @@ function resolveAnchorElementByKey(key) {
   }
   if (key === "tmdbTrailerRows") {
     return getManagedSectionTail("tmdb-trailer-rows--");
+  }
+  if (key === "tagRows") {
+    return getManagedSectionTail("tag-rows--");
   }
   if (key === "recentRows") {
     return getManagedSectionTail("recent-rows--");

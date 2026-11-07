@@ -1,5 +1,6 @@
 import { getLanguageLabels, getDefaultLanguage, getStoredLanguagePreference } from '../language/index.js';
 import { applyPositionOverlay, migratePositionProfiles } from './positionProfiles.js';
+import { normalizeTagRows, getActiveTagRows } from './tagRows.js';
 
 // Corrige o que as builds 3.8.2.31/32 fizeram com as chaves de posicao (so age se houver o que migrar).
 migratePositionProfiles();
@@ -18,6 +19,7 @@ export const DEFAULT_MANAGED_HOME_SECTION_ORDER = Object.freeze([
   "top10MovieRows",
   "tmdbTopMoviesRows",
   "tmdbTrailerRows",
+  "tagRows",
   "recentRows",
   "continueRows",
   "nextUpRows",
@@ -185,9 +187,14 @@ export function normalizeManagedHomeSectionOrder(value = null, { nativeEntries }
     });
   }
 
-  DEFAULT_MANAGED_HOME_SECTION_ORDER.forEach(push);
+  // Fork Zigerus (4.0.0.93): was `.forEach(push)`, which passed the array index as `fromExplicit`, so every default from
+  // index 1 on counted as placed by the user and the follower rules below never moved a key missing from a saved order.
+  DEFAULT_MANAGED_HOME_SECTION_ORDER.forEach((key) => push(key, false));
 
   ensureImplicitManagedFollowerOrder(out, explicit, "tmdbTopMoviesRows", "tmdbTrailerRows");
+  // Fork Zigerus (4.0.0.93): a saved order from before tag rows existed would put them last; park them after Featured
+  // Upcoming until the user places them.
+  ensureImplicitManagedFollowerOrder(out, explicit, "tmdbTrailerRows", "tagRows");
   ensureImplicitManagedFollowerOrder(out, explicit, "recentRows", "continueRows");
   ensureImplicitManagedFollowerOrder(out, explicit, "continueRows", "nextUpRows");
 
@@ -274,6 +281,8 @@ function buildManagedHomeSectionEnabledMap(cfg = {}) {
     becauseYouWatched: masterEnabled && cfg?.enableBecauseYouWatched !== false,
     genreHubs: masterEnabled && cfg?.enableGenreHubs !== false,
     directorRows: masterEnabled && cfg?.enableDirectorRows !== false,
+    // Fork Zigerus (4.0.0.93): on when at least one tag row is switched on, has tags and is in season today.
+    tagRows: masterEnabled && getActiveTagRows(cfg?.tagRows).length > 0,
   };
 }
 
@@ -1123,6 +1132,7 @@ function computeConfig() {
     enableTop10SeriesRow: (localStorage.getItem('enableTop10SeriesRow') || 'true') !== 'false',
     enableTmdbTopMoviesRow: localStorage.getItem('enableTmdbTopMoviesRow') === 'true',
     enableTmdbTrailerRows: (localStorage.getItem('enableTmdbTrailerRows') || 'true') !== 'false',
+    tagRows: normalizeTagRows(localStorage.getItem('tagRows')),
 
     enableContinueMovies: (localStorage.getItem('enableContinueMovies') || 'true') !== 'false',
     showContinueMoviesHeroCards: (localStorage.getItem('showContinueMoviesHeroCards') || 'true') !== 'false',
@@ -1592,6 +1602,7 @@ export function getHomeSectionsRuntimeConfig(source = null) {
     enableTop10MovieRowsSection: enabledMap.top10MovieRows,
     enableTmdbTopMoviesRowsSection: enabledMap.tmdbTopMoviesRows,
     enableTmdbTrailerRowsSection: enabledMap.tmdbTrailerRows,
+    enableTagRowsSection: enabledMap.tagRows,
     enableBecauseYouWatched: enabledMap.becauseYouWatched,
     enableGenreHubs: enabledMap.genreHubs,
     enableDirectorRows: enabledMap.directorRows,

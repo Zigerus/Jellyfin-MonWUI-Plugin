@@ -1,3 +1,4 @@
+import { normalizeTagRows } from "../tagRows.js";
 import { getAdminTargetProfile, getConfig, getDeviceProfileAuto, normalizeManagedCardTitleDisplayMode, normalizeManagedHomeSectionOrder, normalizeSettingsHotkey, publishAdminSnapshotIfForced, SETTINGS_HOTKEY_DEFAULT } from "../config.js";
 import { updateConfig } from "../configPersistence.js";
 import { getActivePositionProfile, isPositionKey, savePositionOverrides } from "../positionProfiles.js";
@@ -760,6 +761,12 @@ const USER_ONLY_KEYS = [
             showGenreHubsHeroCards: formData.get('showGenreHubsHeroCards') === 'on',
             studioHubsGenreCardCount: parseInt(formData.get('studioHubsGenreCardCount'), 10) || 10,
             studioHubsGenreRowsCount: parseInt(formData.get('studioHubsGenreRowsCount'), 10) || 3,
+            // Fork Zigerus (4.0.0.93): tag rows, one JSON field written by settings/tagRowsSettings.js.
+            tagRows: (() => {
+              const raw = formData.get('tagRows');
+              if (raw === null) return getConfig().tagRows;
+              return normalizeTagRows(raw);
+            })(),
             genreHubsOrder: (() => {
               const raw = formData.get('genreHubsOrder');
               if (!raw) return getConfig().genreHubsOrder;

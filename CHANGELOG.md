@@ -5,6 +5,24 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.93 (Zigerus build, Jellyfin 12)
+
+### Changes
+- **Tag rows: home rows built from library tags you pick**, for example a Christmas row from "christmas" + "santa claus". Each row has:
+  - a title;
+  - its tags (a title needs any one of them);
+  - optionally some genres (a title must then also have one of them);
+  - Movies, Shows or Both;
+  - Random (a new mix each day, the same on every device; up to 20 cards) or Top 10 by rating (TMDb rating with the Top 10 vote floor of ≥ 25 votes and ≥ 6.0, shown with the big Top 10 numerals);
+  - an optional season picked on a two-month calendar. By default it comes back every year, and a range may wrap past New Year (Dec 20 → Jan 6); turning "Every year" off makes it one exact range. Outside its season the row is not built, and its card in settings says when it comes back ("hidden until Nov 15").
+  - Watched titles count.
+  Tag rows sit together in the home-row order as one entry, "Tag rows", and run in the order of their list. A saved order from before this version places them right after Featured Upcoming Movies.
+- **New "Home Rows" settings tab, right under Slider**, holding every home-row setting: tag rows, personalized recommendations, recently added / continue watching / next up, Top 10 and TMDb rows, other libraries, because you watched, genre rows, director rows and the home-row order. These used to sit under "Studio Collections Settings", which now holds only the studio hubs. The controls and their saved names are unchanged.
+- **Tag picker.** You search the library's own tags and see how many movies or shows carry each, then tick exact tags. Keyword matching would have pulled in unrelated tags, e.g. "santa" matching "santa cruz, california". New signed-in endpoint `GET /Plugins/JMSFusion/library-tags`: every tag on the signed-in user's movies and shows with counts, cached per user for 10 minutes. The editor shows live match counts ("32 of the 53 tagged films are Family").
+
+### Fixes
+- **A home row added in a newer version no longer lands at the bottom of a saved home-row order.** `normalizeManagedHomeSectionOrder` called `DEFAULT_MANAGED_HOME_SECTION_ORDER.forEach(push)`, which passed the array index as `push`'s "placed by the user" flag. Every default from the second one on therefore counted as placed, and the rules that put a new row next to its partner (Featured Upcoming after TMDb Top Rated, Continue Watching after Recently Added, Next Up after Continue Watching) never ran for rows missing from a saved order.
+
 ## 4.0.0.92 (Zigerus build, Jellyfin 12)
 
 ### Changes
