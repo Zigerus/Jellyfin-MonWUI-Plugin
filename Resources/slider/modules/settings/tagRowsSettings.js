@@ -653,12 +653,10 @@ html body #settings-modal .tagrows-name { font: 400 24px/1.05 var(--tr-serif); l
 html body #settings-modal .tagrows-card.is-off .tagrows-name { color: var(--tr-muted); }
 html body #settings-modal .tagrows-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0; font: 400 12px/1.4 var(--tr-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--tr-muted); }
 html body #settings-modal .tagrows-meta i { display: inline-block; width: 5px; height: 5px; margin: 0 8px; border-radius: 999px; background: currentColor; opacity: .5; }
-html body #settings-modal button.tagrows-handle, html body #settings-modal button.tagrows-iconbtn { flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; margin: 0; border: 1px solid transparent; border-radius: 999px; background: none; color: var(--tr-muted) !important; cursor: pointer; box-shadow: none; min-width: 0; min-height: 0; }
-html body #settings-modal button.tagrows-handle { cursor: grab; width: 24px; }
-html body #settings-modal button.tagrows-handle svg { width: 18px; height: 18px; }
+html body #settings-modal button.tagrows-iconbtn { flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; margin: 0; border: 1px solid transparent; border-radius: 999px; background: none; color: var(--tr-muted) !important; cursor: pointer; box-shadow: none; min-width: 0; min-height: 0; }
 html body #settings-modal button.tagrows-iconbtn svg { width: 16px; height: 16px; }
-html body #settings-modal button.tagrows-iconbtn:hover, html body #settings-modal button.tagrows-handle:hover { color: var(--tr-text) !important; }
-html body #settings-modal button.tagrows-iconbtn:focus-visible, html body #settings-modal button.tagrows-handle:focus-visible, html body #settings-modal button.tagrows-switch:focus-visible, html body #settings-modal button.tagrows-seg-btn:focus-visible, html body #settings-modal button.tagrows-date:focus-visible, html body #settings-modal button.tagrows-cd:focus-visible, html body #settings-modal button.tagrows-btn:focus-visible, html body #settings-modal button.tagrows-chip-x:focus-visible { outline: 2px solid var(--tr-on); outline-offset: 2px; }
+html body #settings-modal button.tagrows-iconbtn:hover { color: var(--tr-text) !important; }
+html body #settings-modal button.tagrows-iconbtn:focus-visible, html body #settings-modal button.tagrows-switch:focus-visible, html body #settings-modal button.tagrows-seg-btn:focus-visible, html body #settings-modal button.tagrows-date:focus-visible, html body #settings-modal button.tagrows-cd:focus-visible, html body #settings-modal button.tagrows-btn:focus-visible, html body #settings-modal button.tagrows-chip-x:focus-visible { outline: 2px solid var(--tr-on); outline-offset: 2px; }
 html body #settings-modal button.tagrows-switch { flex: none; position: relative; width: 38px; height: 22px; padding: 0; margin: 0; border: 0; border-radius: 999px; background: rgba(127,127,127,.3); cursor: pointer; min-width: 0; min-height: 0; box-shadow: none; }
 html body #settings-modal button.tagrows-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 999px; background: #f4f4f7; opacity: .75; transition: left .15s ease; }
 html body #settings-modal button.tagrows-switch[aria-checked="true"] { background: var(--tr-on); }
@@ -740,7 +738,7 @@ html body #settings-modal .tagrows-count { font: 400 13px/1.4 var(--tr-mono); co
 /* Lumen §13 marks input backgrounds, borders and colours !important; the search field sits borderless inside its box. */
 html body #settings-modal .tagrows-searchbox input.tagrows-search[type="text"], html body #settings-modal .tagrows-searchbox input.tagrows-search[type="text"]:hover, html body #settings-modal .tagrows-searchbox input.tagrows-search[type="text"]:focus, html body #settings-modal .tagrows-searchbox input.tagrows-search[type="text"]:focus-visible { background-color: transparent !important; border: 0 !important; box-shadow: none !important; min-height: 0; padding: 0; }
 html body #settings-modal label.tagrows-searchbox { font: 400 14px/1 var(--settings-font, inherit) !important; }
-html body #settings-modal button.tagrows-handle:hover, html body #settings-modal button.tagrows-iconbtn:hover, html body #settings-modal button.tagrows-chip-x:hover { background: rgba(127,127,127,.14); }
+html body #settings-modal button.tagrows-iconbtn:hover, html body #settings-modal button.tagrows-chip-x:hover { background: rgba(127,127,127,.14); }
 html body #settings-modal button.tagrows-cd.is-blank:hover { background: none; }
 @media (max-width: 720px) {
   html body #settings-modal .tagrows-head { gap: 10px 12px; }

@@ -2515,6 +2515,8 @@ function installHomeTabSliderOnlyGate() {
   }
 
   apply();
+  // Fork Zigerus (4.0.0.95): the hero watchdog re-runs the gate when it hides the hero on the Home tab itself
+  window.__jmsHomeTabGateApply = apply;
 
   // Fork ParticularFlix: o observador dispara a cada mudanca do DOM e apply() le a
   // configuracao inteira (getConfig). Agrupa as chamadas em uma por 120 ms.
@@ -3488,6 +3490,8 @@ function holdSlidesSpace() {
     const nextTop = next ? next.getBoundingClientRect().top : null;
     old.parentNode.insertBefore(holder, old);
     old.style.setProperty("display", "none", "important");
+    // Fork Zigerus (4.0.0.95): marks the hide as ours, so a hero that survives the reset gets its display back
+    old.dataset.jmsHeldOut = "1";
     if (next && nextTop !== null) {
       const drift = next.getBoundingClientRect().top - nextTop;
       if (Math.abs(drift) >= 1) holder.style.height = `${Math.max(0, h - drift)}px`;
@@ -3525,6 +3529,10 @@ async function scheduleSliderRebuild(reason = "cycle-complete") {
     initializeSliderOnHome({ forceManagedSectionsBoot: true, keepScroll: true });
   } finally {
     window.__rebuildingSlider = false;
+    // Fork Zigerus (4.0.0.95): the rebuild tears the hero down first; make sure it came back
+    try { window.__jmsLastCycleRebuildAt = Date.now(); } catch {}
+    scheduleHeroWatchdogCheck(9000, "after-cycle-rebuild");
+    scheduleHeroWatchdogCheck(21000, "after-cycle-rebuild");
   }
 }
 
@@ -4403,6 +4411,12 @@ function upsertSlidesContainerAtTop(indexPage) {
     if (heldOffset && document.getElementById("monwui-slides-holder")) c.style.setProperty("--jms-slider-header-offset-px", heldOffset);
   } else {
     if (c.parentElement) c.parentElement.removeChild(c);
+    // Fork Zigerus (4.0.0.95): a cycle rebuild hides the old hero with an inline display:none !important while the
+    // spacer holds its place (holdSlidesSpace). If that hero is still here to be reused, nothing else would ever clear it.
+    if (c.dataset.jmsHeldOut) {
+      c.style.removeProperty("display");
+      delete c.dataset.jmsHeldOut;
+    }
   }
 
   placeSlidesContainerAtTop(indexPage, c);
@@ -5682,11 +5696,15 @@ export async function slidesInit() {
     try { primeQualityFromItems(items); } catch {}
     if (!items.length) {
     console.warn("Hiçbir slayt verisi elde edilemedi.");
+    // Fork Zigerus (4.0.0.95): no slide data is a legitimate empty hero (blocked profile, empty library); the hero
+    // watchdog backs off from it instead of rebuilding every few seconds
+    try { window.__jmsHeroNoItemsAt = Date.now(); } catch {}
     // Fork ParticularFlix: sem nenhum slide (perfil bloqueado, biblioteca vazia) a tela de abertura ficava
     // esperando o limite de 12 s antes de mostrar a pagina. Nao ha o que esperar: libera na hora.
     try { hideCustomSplash("no-slides"); } catch {}
     return;
   }
+  try { window.__jmsHeroNoItemsAt = 0; } catch {}
   window.__totalSlidesPlanned = items.length;
   window.__slidesCreated = 0;
   window.__jmsSlideCreationDone = false;
@@ -6115,6 +6133,163 @@ function scheduleHomeHealthWatchdog(reason = "home-tab-change") {
       }
     }, delay));
   });
+}
+
+// Fork Zigerus (4.0.0.95): hero watchdog. Reported 2026-11-08: left open for a while, the home page lost its hero and
+// the rows slid up under the header; only a reload brought it back. Nothing ever re-checked the hero while the page
+// just sat there: the health check above runs only after a tab change inside home, and the restore repair needs a
+// hero that is still in the DOM. Five bench scenarios (tab in front, background tab, the API down across a cycle
+// rebuild, the window resized, the Home-tab gate) did not reproduce it, so this is trigger-agnostic: while the home
+// page is in front, every 10 s (and on coming back to the tab, and after every cycle rebuild) a hero that should be
+// there and is missing or flat twice in a row (4 s apart) is rebuilt in place, at most 3 times in 10 minutes. What it
+// found is logged to the console, to sessionStorage "jms:heroWatchdogLog", and to the Jellyfin log (client-log).
+const HERO_WATCHDOG_INTERVAL_MS = 10000;
+const HERO_WATCHDOG_CONFIRM_MS = 4000;
+const HERO_WATCHDOG_MAX_REPAIRS = 3;
+const HERO_WATCHDOG_WINDOW_MS = 10 * 60 * 1000;
+const __heroWatch = { installed: false, strikes: 0, firstStrikeAt: 0, repairs: [], gaveUp: false, gateLogged: false };
+
+function describeHeroState() {
+  const page = getVisibleHomePageEl();
+  const sc = page?.querySelector?.("#monwui-slides-container") || null;
+  let display = "";
+  try { display = sc ? getComputedStyle(sc).display : ""; } catch {}
+  const r = sc?.getBoundingClientRect?.();
+  const last = window.__jmsLastSliderCleanup || null;
+  const rebuiltAt = Number(window.__jmsLastCycleRebuildAt) || 0;
+  return {
+    containers: document.querySelectorAll("#monwui-slides-container").length,
+    inPage: !!sc,
+    inlineDisplay: sc?.style?.getPropertyValue?.("display") || "",
+    display,
+    height: r ? Math.round(r.height) : null,
+    slides: sc ? sc.querySelectorAll(".monwui-slide").length : 0,
+    activeSlide: !!sc?.querySelector?.(".monwui-slide.active"),
+    holder: !!document.getElementById("monwui-slides-holder"),
+    heldOut: !!sc?.dataset?.jmsHeldOut,
+    homeTabFlag: document.documentElement.dataset.jmsHomeTabActive || "",
+    planned: Number(window.__totalSlidesPlanned) || 0,
+    created: Number(window.__slidesCreated) || 0,
+    lastCleanup: last ? `${last.reason} ${Math.round((Date.now() - last.at) / 1000)}s ago` : "",
+    sinceCycleRebuildS: rebuiltAt ? Math.round((Date.now() - rebuiltAt) / 1000) : null,
+    pageAgeMin: Math.round(performance.now() / 60000),
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    scrollY: Math.round(window.scrollY || 0),
+    hash: String(window.location.hash || "").slice(0, 40),
+  };
+}
+
+function reportHeroWatchdog(event, detail = {}) {
+  try { console.warn("[JMS] hero watchdog:", event, detail); } catch {}
+  try {
+    const key = "jms:heroWatchdogLog";
+    const log = JSON.parse(sessionStorage.getItem(key) || "[]");
+    log.push({ at: new Date().toISOString(), event, ...detail });
+    sessionStorage.setItem(key, JSON.stringify(log.slice(-20)));
+  } catch {}
+  try {
+    const { accessToken } = getSessionInfo() || {};
+    if (!accessToken) return;
+    void fetch(withServer("/Plugins/JMSFusion/client-log"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": getAuthHeader(),
+        "X-Emby-Token": accessToken,
+      },
+      body: JSON.stringify({ event, detail }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {}
+}
+
+function isHomeTabZeroByUrl() {
+  const hash = String(window.location.hash || "");
+  const query = hash.includes("?") ? hash.slice(hash.indexOf("?") + 1) : "";
+  const tab = new URLSearchParams(query).get("tab");
+  return !tab || tab === "0";
+}
+
+// The hero is meant to be on screen: home in front, slider on, not paused for another home tab, not mid-boot or mid-rebuild.
+function isHeroExpectedNow() {
+  if (document.hidden) return false;
+  if (!isSliderEnabled() || !isHomeVisible()) return false;
+  const root = document.documentElement;
+  if (root.classList.contains("jms-access-blocked")) return false;
+  if (root.dataset.jmsHomeTabActive === "0") {
+    // the "only on the Home tab" gate hides it on purpose on the other tabs; on the Home tab itself that is a gate
+    // error, so re-run the gate once and report it (the watchdog never overrides the gate)
+    if (isHomeTabZeroByUrl() && !__heroWatch.gateLogged) {
+      __heroWatch.gateLogged = true;
+      try { window.__jmsHomeTabGateApply?.(); } catch {}
+      reportHeroWatchdog("gate-hid-hero-on-home-tab", { ...describeHeroState(), afterReapply: root.dataset.jmsHomeTabActive || "" });
+    }
+    return false;
+  }
+  try { if (isCustomSplashBlockingNow()) return false; } catch {}
+  if (isHomeInitPending() || window.__slidesInitRunning || window.sliderResetInProgress || window.__rebuildingSlider) return false;
+  if (document.getElementById("monwui-slides-holder")) return false;
+  const noItemsAt = Number(window.__jmsHeroNoItemsAt) || 0;
+  if (noItemsAt && Date.now() - noItemsAt < HERO_WATCHDOG_WINDOW_MS) return false;
+  return true;
+}
+
+function repairHero(source) {
+  const now = Date.now();
+  __heroWatch.repairs = __heroWatch.repairs.filter((t) => now - t < HERO_WATCHDOG_WINDOW_MS);
+  const state = describeHeroState();
+  if (__heroWatch.repairs.length >= HERO_WATCHDOG_MAX_REPAIRS) {
+    if (!__heroWatch.gaveUp) {
+      __heroWatch.gaveUp = true;
+      reportHeroWatchdog("hero-repair-gave-up", { source, ...state });
+    }
+    return;
+  }
+  __heroWatch.repairs.push(now);
+  __heroWatch.gaveUp = false;
+  reportHeroWatchdog("hero-repaired", { source, ...state });
+  window.__initOnHomeOnce = false;
+  try { releaseSlidesSpace(); } catch {}
+  try { fullSliderReset({ reason: `hero-watchdog:${source}` }); } catch (e) { console.warn("hero watchdog reset hata:", e); }
+  initializeSliderOnHome({ forceManagedSectionsBoot: true, keepScroll: true });
+  scheduleHeroWatchdogCheck(12000, "after-repair");
+}
+
+function runHeroWatchdogCheck(source = "interval") {
+  try {
+    if (!isHeroExpectedNow() || isHomeSliderHealthy()) {
+      __heroWatch.strikes = 0;
+      return;
+    }
+    __heroWatch.strikes += 1;
+    if (__heroWatch.strikes === 1) {
+      __heroWatch.firstStrikeAt = Date.now();
+      scheduleHeroWatchdogCheck(HERO_WATCHDOG_CONFIRM_MS, `${source}:confirm`);
+      return;
+    }
+    if (Date.now() - __heroWatch.firstStrikeAt < HERO_WATCHDOG_CONFIRM_MS - 500) return;
+    __heroWatch.strikes = 0;
+    repairHero(source);
+  } catch (e) {
+    console.warn("hero watchdog hata:", e);
+  }
+}
+
+function scheduleHeroWatchdogCheck(delayMs, source) {
+  window.setTimeout(() => runHeroWatchdogCheck(source), Math.max(0, Number(delayMs) || 0));
+}
+
+function installHeroWatchdog() {
+  if (__heroWatch.installed) return;
+  __heroWatch.installed = true;
+  window.setInterval(() => {
+    if (document.hidden || !isHomeRouteActive()) return;
+    runHeroWatchdogCheck("interval");
+  }, HERO_WATCHDOG_INTERVAL_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) scheduleHeroWatchdogCheck(1500, "tab-visible");
+  }, { passive: true });
+  window.__jmsHeroWatchdogState = () => ({ ...describeHeroState(), expected: isHeroExpectedNow(), healthy: isHomeSliderHealthy(), repairs: __heroWatch.repairs.slice() });
 }
 
 function setupNavigationObserver() {
@@ -6707,13 +6882,18 @@ function cleanupSlider({ preserveHomeSections = false, invalidateBoot = true, re
   });
   const shouldPreserveManagedHomeSectionBoot =
     preserveHomeSections && isHomeRouteActive();
+  // Fork Zigerus (4.0.0.95): the hero watchdog reports the last teardown with what it finds
+  try { window.__jmsLastSliderCleanup = { reason: String(reason || ""), at: Date.now() }; } catch {}
   try { teardownAnimations(); } catch {}
   try { stopSlideTimer(); } catch {}
   try { window.__cleanupActiveWatch?.(); } catch {}
   window.__cleanupActiveWatch = null;
-  cleanupSliderRuntimeBindings();
-  cancelPendingSliderRepair();
-  clearPendingSliderIdleTasks();
+  // Fork Zigerus (4.0.0.95): these three ran unguarded. One throwing would skip the removal of the old hero below (which a
+  // cycle rebuild has already hidden with display:none !important), and the rebuild that follows would fail the same way.
+  // Not proven to be the 2026-11-08 trigger; guarded because the hero watchdog cannot help while that state persists.
+  try { cleanupSliderRuntimeBindings(); } catch (e) { console.warn("cleanupSliderRuntimeBindings hata:", e); }
+  try { cancelPendingSliderRepair(); } catch {}
+  try { clearPendingSliderIdleTasks(); } catch {}
   try { cleanupSlideCreatorRuntime({ clearWarmQueue: true }); } catch {}
   try { window.__stopJmsLibraryWatcher?.(); } catch {}
   window.__stopJmsLibraryWatcher = null;
@@ -6795,8 +6975,8 @@ function cleanupSlider({ preserveHomeSections = false, invalidateBoot = true, re
       sliderContainer.classList.remove('peak-init');
       delete sliderContainer.dataset.peakPrimed;
     } catch {}
-    cleanupSlidesContainerDeep(sliderContainer);
-    sliderContainer.remove();
+    try { cleanupSlidesContainerDeep(sliderContainer); } catch (e) { console.warn("cleanupSlidesContainerDeep hata:", e); }
+    try { sliderContainer.remove(); } catch {}
   }
 }
 
@@ -7246,6 +7426,7 @@ function observeWhenHomeReady(cb, maxMs = 20000) {
     });
 
     setupNavigationObserver();
+    try { installHeroWatchdog(); } catch (e) { console.warn("heroWatchdog hata:", e); }
     installAuthContextRecovery();
     installFocusedPlaybackUserDataSync();
     installHomeTabSliderOnlyGate();
