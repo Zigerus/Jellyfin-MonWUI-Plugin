@@ -1,5 +1,5 @@
 import { getSessionInfo, makeApiRequest, playNow, waitForAuthReadyStrict, getCachedUserTopGenres } from "../../Plugins/JMSFusion/runtime/api.js";
-import { getConfig, getHomeSectionsRuntimeConfig, getManagedHomeSectionRuntimeOrder } from "./config.js";
+import { getConfig, getHomeSectionsRuntimeConfig, getManagedHomeSectionRuntimeOrder, COLLECTION_NEXT_WINDOWS, normalizeCollectionNextWindow } from "./config.js";
 import { getLanguageLabels } from "../language/index.js";
 import { attachMiniPosterHover } from "./studioHubsUtils.js";
 import { REOPEN_COOLDOWN_MS, getHoverOpenDelayMs, isHoverOpenAllowed } from "./hoverTrailerModal.js";
@@ -163,6 +163,9 @@ function getRecentRowsRuntimeConfig(source = getLiveConfig()) {
     enableContinueMovies: homeSectionsConfig.enableContinueMovies,
     enableContinueSeries: homeSectionsConfig.enableContinueSeries,
     enableNextUp: homeSectionsConfig.enableNextUpRowsSection,
+    // Fork Zigerus (4.0.0.96): "Next in the Collection" (rules on the server: CollectionNextController).
+    enableCollectionNext: homeSectionsConfig.enableCollectionNextRowsSection === true,
+    collectionNextDays: COLLECTION_NEXT_WINDOWS[normalizeCollectionNextWindow(cfg.collectionNextWindow)],
     showContinueMoviesHeroCards: cfg.showContinueMoviesHeroCards !== false,
     showContinueSeriesHeroCards: cfg.showContinueSeriesHeroCards !== false,
     enableOtherLibRows: homeSectionsConfig.enableOtherLibRows,
@@ -178,6 +181,7 @@ function getRecentRowsRuntimeConfig(source = getLiveConfig()) {
     effectiveContinueMoviesCount: getEffectiveRowCount(clampPositiveCount(cfg.continueMoviesCardCount, 10)),
     effectiveContinueSeriesCount: getEffectiveRowCount(clampPositiveCount(cfg.continueSeriesCardCount, 10)),
     effectiveNextUpCount: getEffectiveRowCount(clampPositiveCount(cfg.nextUpCardCount, 10)),
+    effectiveCollectionNextCount: Math.min(30, getEffectiveRowCount(clampPositiveCount(cfg.collectionNextCardCount, 20))),
     effectiveOtherRecentCount: getEffectiveRowCount(clampPositiveCount(cfg.otherLibrariesRecentCardCount, 10)),
     effectiveOtherContinueCount: getEffectiveRowCount(clampPositiveCount(cfg.otherLibrariesContinueCardCount, 10)),
     effectiveOtherEpisodesCount: getEffectiveRowCount(clampPositiveCount(cfg.otherLibrariesEpisodesCardCount, 10)),
@@ -301,6 +305,12 @@ const RECENT_ROW_SECTION_META = Object.freeze({
     id: "nextup-rows",
     flag: "__jmsNextUpRowsDone",
     event: "jms:nextup-rows-done"
+  },
+  // Fork Zigerus (4.0.0.96): one card per movie collection the user is partway through.
+  collectionNextRows: {
+    id: "collection-next-rows",
+    flag: "__jmsCollectionNextRowsDone",
+    event: "jms:collection-next-rows-done"
   },
   // Fork Zigerus (4.0.0.93): every tag row in season, stacked in the user's list order.
   tagRows: {
@@ -495,6 +505,10 @@ function hasNextUpRowsSectionEnabled(runtimeCfg) {
   return runtimeCfg.enableNextUp === true;
 }
 
+function hasCollectionNextRowsSectionEnabled(runtimeCfg) {
+  return runtimeCfg.enableCollectionNext === true;
+}
+
 function getOrderedRecentRowSectionKeys(cfg, runtimeCfg) {
   const enabled = new Set();
   if (hasTop10SeriesRowsSectionEnabled(runtimeCfg)) enabled.add("top10SeriesRows");
@@ -505,6 +519,7 @@ function getOrderedRecentRowSectionKeys(cfg, runtimeCfg) {
   if (hasRecentRowsSectionEnabled(runtimeCfg)) enabled.add("recentRows");
   if (hasContinueRowsSectionEnabled(runtimeCfg)) enabled.add("continueRows");
   if (hasNextUpRowsSectionEnabled(runtimeCfg)) enabled.add("nextUpRows");
+  if (hasCollectionNextRowsSectionEnabled(runtimeCfg)) enabled.add("collectionNextRows");
   if (!enabled.size) return [];
 
   const ordered = getManagedHomeSectionRuntimeOrder(cfg, { enabledOnly: true })
@@ -2381,6 +2396,128 @@ function loadCachedTagRowItems(row) {
   return loadDatedRowList(TAG_ROW_CACHE_KIND, tagRowCacheType(row), { pool: limit, limit });
 }
 
+// Fork Zigerus (4.0.0.96): "Next in the Collection". The server picks the films (one query per user, see
+// CollectionNextController); the page asks for them, loads the films like any row and hangs each card's collection info
+// (place, total, a letter per film) on the item for the card's bar and line. The info is saved with the ids, so the
+// cached first paint draws the same bars.
+const COLLECTION_NEXT_ENDPOINT = "/Plugins/JMSFusion/collection-next";
+const COLLECTION_NEXT_CACHE_KIND = "collection_next";
+
+function normalizeCollectionNextInfo(raw) {
+  const itemId = String(raw?.itemId ?? raw?.ItemId ?? "").replace(/-/g, "").toLowerCase();
+  const states = String(raw?.states ?? raw?.States ?? "").replace(/[^wn-]/g, "");
+  const total = Number(raw?.total ?? raw?.Total) || states.length;
+  const position = Number(raw?.position ?? raw?.Position) || (states.indexOf("n") + 1);
+  if (!itemId || !states || total < 2 || position < 1) return null;
+  return {
+    itemId,
+    collectionId: String(raw?.collectionId ?? raw?.CollectionId ?? ""),
+    collectionName: String(raw?.collectionName ?? raw?.CollectionName ?? "").trim(),
+    position,
+    total,
+    states
+  };
+}
+
+function attachCollectionNextInfo(items, infos) {
+  const byId = new Map((infos || []).map((info) => [info.itemId, info]));
+  const out = [];
+  for (const item of (Array.isArray(items) ? items : [])) {
+    const info = byId.get(String(item?.Id || "").replace(/-/g, "").toLowerCase());
+    if (!info) continue;
+    item.__jmsCollection = info;
+    out.push(item);
+  }
+  return out;
+}
+
+async function fetchCollectionNextItems(days, limit) {
+  const endpoint = withServer(COLLECTION_NEXT_ENDPOINT) || COLLECTION_NEXT_ENDPOINT;
+  const url = new URL(endpoint, window.location.href);
+  url.searchParams.set("days", String(Math.max(0, days | 0)));
+  url.searchParams.set("limit", String(Math.max(1, limit | 0)));
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    headers: buildTmdbTrailerFetchHeaders()
+  });
+  if (!response.ok) throw new Error(`collection-next HTTP ${response.status}`);
+  const payload = await response.json();
+  const infos = (payload?.items ?? payload?.Items ?? []).map(normalizeCollectionNextInfo).filter(Boolean);
+  // refreshUserData: a card must never offer a film that was watched since the films were saved locally
+  const items = attachCollectionNextInfo(
+    await fetchItemsByIds(infos.map((info) => info.itemId), { refreshUserData: true }),
+    infos
+  );
+  if (STATE.db && STATE.scope) {
+    try {
+      await setMeta(STATE.db, metaKey(COLLECTION_NEXT_CACHE_KIND, `d${days}`) + "|" + STATE.scope, {
+        ids: items.map((x) => x?.Id).filter(Boolean),
+        infos: items.map((x) => x.__jmsCollection),
+        cacheStamp: Date.now(),
+        updatedAt: Date.now()
+      });
+    } catch {}
+  }
+  return items;
+}
+
+async function loadCachedCollectionNextItems(days, limit) {
+  if (!STATE.db || !STATE.scope) return { items: [], fresh: false };
+  let rec = null;
+  try {
+    rec = await getMeta(STATE.db, metaKey(COLLECTION_NEXT_CACHE_KIND, `d${days}`) + "|" + STATE.scope);
+  } catch {}
+  const infos = (Array.isArray(rec?.infos) ? rec.infos : []).map(normalizeCollectionNextInfo).filter(Boolean).slice(0, limit);
+  if (!infos.length) return { items: [], fresh: false };
+  const items = attachCollectionNextInfo(await fetchItemsByIds(infos.map((info) => info.itemId), { refreshUserData: false }), infos);
+  // never fresh: the server is asked on every visit (it keeps the answer 60 s), the saved list only paints first
+  return { items, fresh: false };
+}
+
+function getCollectionsViewId() {
+  const view = (STATE.otherLibs || []).find((lib) => String(lib?.CollectionType || "").toLowerCase() === "boxsets");
+  return view?.Id || "";
+}
+
+function stripCollectionSuffix(name) {
+  const clean = String(name || "").trim();
+  const stripped = clean.replace(/\s+collection$/i, "").trim();
+  return stripped || clean;
+}
+
+function buildCollectionNextFootHtml(info) {
+  if (!info) return "";
+  const labels = config.languageLabels || {};
+  const posText = String(labels.collectionNextPosition || "{n} of {total}")
+    .replace("{n}", String(info.position))
+    .replace("{total}", String(info.total));
+  const name = stripCollectionSuffix(info.collectionName);
+  const watched = (info.states.match(/w/g) || []).length;
+  const aria = String(labels.collectionNextBarAria || "{pos} in {name}, {watched} watched")
+    .replace("{pos}", posText)
+    .replace("{name}", name)
+    .replace("{watched}", String(watched));
+  const segs = Array.from(info.states).map((c) => `<i class="cnc-seg${c === "w" ? " cnc-w" : c === "n" ? " cnc-nx" : ""}"></i>`).join("");
+  return `
+    <div class="cnc-foot">
+      <div class="cnc-bar" role="img" aria-label="${escapeHtml(aria)}">${segs}</div>
+      <div class="cnc-sub" title="${escapeHtml(`${posText} · ${name}`)}"><span class="cnc-pos">${escapeHtml(posText)}</span>${name ? `<span class="cnc-dot">·</span><span class="cnc-name">${escapeHtml(name)}</span>` : ""}</div>
+    </div>
+  `;
+}
+
+function buildCollectionNextLegendHtml() {
+  const labels = config.languageLabels || {};
+  return `
+    <div class="cnc-legend" aria-hidden="true">
+      <span><i class="cnc-seg cnc-w"></i>${escapeHtml(labels.collectionNextLegendWatched || "Watched")}</span>
+      <span><i class="cnc-seg cnc-nx"></i>${escapeHtml(labels.collectionNextLegendThis || "This card")}</span>
+      <span><i class="cnc-seg"></i>${escapeHtml(labels.collectionNextLegendNotYet || "Not yet")}</span>
+    </div>
+  `;
+}
+
 function buildTmdbMovieLookup(items = []) {
   const byTmdbId = new Map();
   const byTitleYear = new Map();
@@ -3187,6 +3324,9 @@ function createRecommendationCard(item, serverId, {
   card.className = "card personal-recs-card";
   const isTrailerVariant = variant === "tmdbTrailer" || item?.__monwuiVirtualTrailer === true;
   const isTop10 = variant === "top10" || isTrailerVariant;
+  // Fork Zigerus (4.0.0.96): "Next in the Collection" cards add the collection's bar and "4 of 5 · name" under the poster.
+  const collectionInfo = variant === "collection" ? (item?.__jmsCollection || null) : null;
+  if (collectionInfo) card.classList.add("collection-next-card");
   if (isTop10) card.classList.add("top10-card");
   if (isTrailerVariant) card.classList.add("tmdb-trailer-card");
   if (!noEnter) queueEnterAnimation(card);
@@ -3362,6 +3502,7 @@ function createRecommendationCard(item, serverId, {
           </div>
           ${progressHtml}
         </div>
+        ${collectionInfo ? buildCollectionNextFootHtml(collectionInfo) : ""}
       </a>
     </div>
   `;
@@ -4380,12 +4521,17 @@ async function fillSectionWithItemsInner({
   emptyMessage = "",
   deferNetworkRender = false,
   tagRowId = "",
+  afterRowHtml = "",
 }) {
   const { section, row, heroHost, scrollWrap } = buildSectionSkeleton({
     titleText,
     badgeType,
     onSeeAll
   });
+  // Fork Zigerus (4.0.0.96): a static line under the row (the collection row's legend)
+  if (afterRowHtml) {
+    try { scrollWrap.insertAdjacentHTML("afterend", afterRowHtml); } catch {}
+  }
   const resolveEmptyMessage = () => {
     const raw = typeof emptyMessage === "function" ? emptyMessage() : emptyMessage;
     return String(raw || config.languageLabels.noRecommendations || "Uygun içerik yok").trim();
@@ -5084,6 +5230,7 @@ async function initAndRender({ sectionKey = "recentRows", mountState = null } = 
     const recentPlans      = [];
     const continuePlans    = [];
     const nextUpPlans      = [];
+    const collectionNextPlans = [];
     const episodePlans     = [];
     const pushPlan = (bucket, fn) => { if (typeof fn === "function") bucket.push(fn); };
     let plannedSectionIndex = 0;
@@ -5577,6 +5724,31 @@ async function initAndRender({ sectionKey = "recentRows", mountState = null } = 
     }));
   }
 
+  if (sectionKey === "collectionNextRows" && runtimeCfg.enableCollectionNext) {
+    const days = runtimeCfg.collectionNextDays;
+    const count = runtimeCfg.effectiveCollectionNextCount;
+    pushPlan(collectionNextPlans, () => buildManagedSection({
+      titleText: config.languageLabels.collectionNextTitle || "Next in the Collection",
+      badgeType: "movie",
+      heroLabel: "",
+      cardCount: count,
+      showProgress: false,
+      hideHero: true,
+      sectionClassName: "collection-next-section",
+      rowClassName: "collection-next-row",
+      cardVariant: "collection",
+      afterRowHtml: buildCollectionNextLegendHtml(),
+      fetcher: Object.assign(
+        () => fetchCollectionNextItems(days, count),
+        { cachedItems: () => loadCachedCollectionNextItems(days, count) }
+      ),
+      onSeeAll: () => {
+        const viewId = getCollectionsViewId();
+        gotoHash(viewId ? `#/list.html?parentId=${encodeURIComponent(viewId)}` : (STATE.defaultMoviesHash || DEFAULT_MOVIES_PAGE));
+      }
+    }));
+  }
+
   if (runtimeCfg.enableOtherLibRows) {
     const otherIds = resolveOtherLibSelection();
     const otherDefs = otherIds.map((libId) => {
@@ -5693,6 +5865,7 @@ async function initAndRender({ sectionKey = "recentRows", mountState = null } = 
       sectionKey === "tagRows" ? [...tagRowPlans] :
       sectionKey === "continueRows" ? [...continuePlans] :
       sectionKey === "nextUpRows" ? [...nextUpPlans] :
+      sectionKey === "collectionNextRows" ? [...collectionNextPlans] :
       [...recentPlans, ...episodePlans]
     );
 

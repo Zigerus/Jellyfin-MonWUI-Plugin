@@ -12,6 +12,7 @@ const MANAGED_HOME_SECTION_IDS = new Set([
   "tmdb-top-movie-rows",
   "tmdb-trailer-rows",
   "tag-rows",
+  "collection-next-rows",
   "genre-hubs",
   "director-rows",
   "recent-rows",
@@ -31,6 +32,7 @@ const MANAGED_HOME_SECTION_PREFIXES = Object.freeze([
   ["tmdb-top-movie-rows--", "tmdbTopMoviesRows"],
   ["tmdb-trailer-rows--", "tmdbTrailerRows"],
   ["tag-rows--", "tagRows"],
+  ["collection-next-rows--", "collectionNextRows"],
 ]);
 const NATIVE_HOME_SECTION_SNAPSHOT_KEY = "jms:managedHomeSectionNativeSnapshot:v1";
 const NATIVE_TITLE_SELECTORS = [
@@ -87,6 +89,7 @@ function getManagedHomeSectionKey(el) {
   if (id === "recent-rows") return "recentRows";
   if (id === "continue-rows") return "continueRows";
   if (id === "nextup-rows") return "nextUpRows";
+  if (id === "collection-next-rows") return "collectionNextRows";
   if (id === "genre-hubs") return "genreHubs";
   if (id === "director-rows") return "directorRows";
   if (id === "because-you-watched" || id.startsWith("because-you-watched--")) {

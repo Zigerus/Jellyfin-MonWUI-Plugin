@@ -23,6 +23,7 @@ export const DEFAULT_MANAGED_HOME_SECTION_ORDER = Object.freeze([
   "recentRows",
   "continueRows",
   "nextUpRows",
+  "collectionNextRows",
   "becauseYouWatched",
   "genreHubs",
   "directorRows"
@@ -206,6 +207,8 @@ export function normalizeManagedHomeSectionOrder(value = null, { nativeEntries }
   ensureImplicitManagedFollowerOrder(out, explicit, "tmdbTrailerRows", "tagRows");
   ensureImplicitManagedFollowerOrder(out, explicit, "recentRows", "continueRows");
   ensureImplicitManagedFollowerOrder(out, explicit, "continueRows", "nextUpRows");
+  // Fork Zigerus (4.0.0.96): "Next in the Collection" starts right after Next Up Episodes in a saved order.
+  ensureImplicitManagedFollowerOrder(out, explicit, "nextUpRows", "collectionNextRows");
 
   // Fork Zigerus (4.0.0.94): when tag rows are placed one by one, the "tagRows" key that loads them all goes right
   // before the first of them (unless the user placed it), so they load where the first one sits; the DOM sort then
@@ -270,6 +273,19 @@ function isNextUpRowsSectionEnabled(cfg = {}, masterEnabled = cfg?.enableHomeSec
   return recentMasterEnabled && cfg?.enableNextUpRow !== false;
 }
 
+// Fork Zigerus (4.0.0.96): "Next in the Collection" sits with the Next Up rows, under the same master switch.
+function isCollectionNextRowsSectionEnabled(cfg = {}, masterEnabled = cfg?.enableHomeSectionsMaster !== false) {
+  const recentMasterEnabled = masterEnabled && cfg?.enableRecentRows !== false;
+  return recentMasterEnabled && cfg?.enableCollectionNextRow !== false;
+}
+
+export const COLLECTION_NEXT_WINDOWS = Object.freeze({ "3m": 92, "1y": 365, any: 0 });
+
+export function normalizeCollectionNextWindow(value) {
+  const v = String(value || "").trim();
+  return Object.prototype.hasOwnProperty.call(COLLECTION_NEXT_WINDOWS, v) ? v : "1y";
+}
+
 function ensureImplicitManagedFollowerOrder(out, explicit, anchorKey, followerKey) {
   if (explicit.has(followerKey)) return;
   const anchorIndex = out.indexOf(anchorKey);
@@ -299,6 +315,7 @@ function buildManagedHomeSectionEnabledMap(cfg = {}) {
     recentRows: isRecentRowsSectionEnabled(cfg, masterEnabled),
     continueRows: isContinueRowsSectionEnabled(cfg, masterEnabled),
     nextUpRows: isNextUpRowsSectionEnabled(cfg, masterEnabled),
+    collectionNextRows: isCollectionNextRowsSectionEnabled(cfg, masterEnabled),
     becauseYouWatched: masterEnabled && cfg?.enableBecauseYouWatched !== false,
     genreHubs: masterEnabled && cfg?.enableGenreHubs !== false,
     directorRows: masterEnabled && cfg?.enableDirectorRows !== false,
@@ -1195,6 +1212,9 @@ function computeConfig() {
     recentEpisodesCardCount: parseInt(localStorage.getItem('recentEpisodesCardCount'), 10) || 10,
     enableNextUpRow: (localStorage.getItem('enableNextUpRow') || 'true') !== 'false',
     nextUpCardCount: parseInt(localStorage.getItem('nextUpCardCount'), 10) || 10,
+    enableCollectionNextRow: (localStorage.getItem('enableCollectionNextRow') || 'true') !== 'false',
+    collectionNextWindow: normalizeCollectionNextWindow(localStorage.getItem('collectionNextWindow')),
+    collectionNextCardCount: parseInt(localStorage.getItem('collectionNextCardCount'), 10) || 20,
 
     recentRowsSplitTvLibs: (localStorage.getItem('recentRowsSplitTvLibs') || 'true') !== 'false',
     recentRowsSplitMovieLibs: localStorage.getItem('recentRowsSplitMovieLibs') === 'true',
@@ -1631,6 +1651,7 @@ export function getHomeSectionsRuntimeConfig(source = null) {
     enableRecentRowsSection: enabledMap.recentRows,
     enableContinueRowsSection: enabledMap.continueRows,
     enableNextUpRowsSection: enabledMap.nextUpRows,
+    enableCollectionNextRowsSection: enabledMap.collectionNextRows,
     enableContinueMovies: masterEnabled && cfg.enableContinueMovies !== false,
     enableContinueSeries: masterEnabled && cfg.enableContinueSeries !== false,
     enableOtherLibRows: masterEnabled && !!cfg.enableOtherLibRows,

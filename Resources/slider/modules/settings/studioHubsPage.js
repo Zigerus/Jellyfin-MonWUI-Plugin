@@ -13,6 +13,7 @@ import {
 } from "../homeSectionNative.js";
 import { createCheckbox, createSection, createNumberInput } from "./shared.js";
 import { createTagRowsSection } from "./tagRowsSettings.js";
+import { createCollectionNextSettings } from "./collectionNextSettings.js";
 import { normalizeTagRows } from "../tagRows.js";
 
 // Fork Zigerus (4.0.0.94): each tag row is its own entry in Home row order ("tagRow:<id>").
@@ -349,6 +350,9 @@ function getManagedHomeSectionOrderLabel(name, config, labels) {
   }
   if (name === "nextUpRows") {
     return labels?.managedNextUpRowsLabel || labels?.nextUpEpisodes || "Sıradaki Bölümler";
+  }
+  if (name === "collectionNextRows") {
+    return labels?.collectionNextTitle || "Next in the Collection";
   }
   if (name === "becauseYouWatched") {
     return (
@@ -2114,6 +2118,10 @@ export function createStudioHubsPanel(config, labels) {
   );
   recentSubWrap.appendChild(nextUpCountWrap);
 
+  // Fork Zigerus (4.0.0.96): "Next in the Collection", right under Next Up Episodes.
+  const collectionNext = createCollectionNextSettings(config, labels);
+  recentSubWrap.appendChild(collectionNext.wrap);
+
   const getCb = wrap => wrap?.querySelector?.('input[type="checkbox"]');
   const bindDependentCheckboxVisibility = (controllerWrap, dependentWrap) => {
     const controllerCb = getCb(controllerWrap);
@@ -2174,7 +2182,9 @@ export function createStudioHubsPanel(config, labels) {
       if (recEpHeroCb) recEpHeroCb.checked = false;
       if (nextUpCb) nextUpCb.checked = false;
       if (nextUpHeroCb) nextUpHeroCb.checked = false;
+      if (collectionNext.enableCb) collectionNext.enableCb.checked = false;
     }
+    collectionNext.sync();
     syncRecentMoviesHeroVisibility();
     syncRecentSeriesHeroVisibility();
     syncRecentMusicHeroVisibility();

@@ -1,5 +1,5 @@
 import { normalizeTagRows } from "../tagRows.js";
-import { getAdminTargetProfile, getConfig, getDeviceProfileAuto, normalizeManagedCardTitleDisplayMode, normalizeManagedHomeSectionOrder, normalizeSettingsHotkey, publishAdminSnapshotIfForced, SETTINGS_HOTKEY_DEFAULT } from "../config.js";
+import { getAdminTargetProfile, getConfig, getDeviceProfileAuto, normalizeCollectionNextWindow, normalizeManagedCardTitleDisplayMode, normalizeManagedHomeSectionOrder, normalizeSettingsHotkey, publishAdminSnapshotIfForced, SETTINGS_HOTKEY_DEFAULT } from "../config.js";
 import { updateConfig } from "../configPersistence.js";
 import { getActivePositionProfile, isPositionKey, savePositionOverrides } from "../positionProfiles.js";
 import { saveTuning, applyLayoutTuning, isStringField } from "../layoutTuning.js";
@@ -643,6 +643,23 @@ const USER_ONLY_KEYS = [
               const master = formData.get('enableRecentRows') === 'on';
               if (!master) return false;
               return formData.get('enableNextUpRow') === 'on';
+            })(),
+            // Fork Zigerus (4.0.0.96): "Next in the Collection" (settings/collectionNextSettings.js).
+            enableCollectionNextRow: (() => {
+              const master = formData.get('enableRecentRows') === 'on';
+              if (!master) return false;
+              return formData.get('enableCollectionNextRow') === 'on';
+            })(),
+            collectionNextWindow: (() => {
+              const raw = formData.get('collectionNextWindow');
+              if (raw === null) return normalizeCollectionNextWindow(config.collectionNextWindow);
+              return normalizeCollectionNextWindow(raw);
+            })(),
+            collectionNextCardCount: (() => {
+              const v = parseInt(formData.get('collectionNextCardCount'), 10);
+              if (Number.isFinite(v) && v > 0) return Math.min(30, v);
+              if (Number.isFinite(config.collectionNextCardCount) && config.collectionNextCardCount > 0) return config.collectionNextCardCount;
+              return 20;
             })(),
 
             recentMoviesCardCount: (() => {

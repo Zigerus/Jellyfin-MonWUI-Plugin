@@ -6171,6 +6171,8 @@ function describeHeroState() {
     planned: Number(window.__totalSlidesPlanned) || 0,
     created: Number(window.__slidesCreated) || 0,
     lastCleanup: last ? `${last.reason} ${Math.round((Date.now() - last.at) / 1000)}s ago` : "",
+    recentCleanups: (Array.isArray(window.__jmsSliderCleanupRing) ? window.__jmsSliderCleanupRing : [])
+      .map((e) => `${e.reason} ${Math.round((Date.now() - e.at) / 1000)}s`).join(" | "),
     sinceCycleRebuildS: rebuiltAt ? Math.round((Date.now() - rebuiltAt) / 1000) : null,
     pageAgeMin: Math.round(performance.now() / 60000),
     viewport: `${window.innerWidth}x${window.innerHeight}`,
@@ -6882,8 +6884,15 @@ function cleanupSlider({ preserveHomeSections = false, invalidateBoot = true, re
   });
   const shouldPreserveManagedHomeSectionBoot =
     preserveHomeSections && isHomeRouteActive();
-  // Fork Zigerus (4.0.0.95): the hero watchdog reports the last teardown with what it finds
-  try { window.__jmsLastSliderCleanup = { reason: String(reason || ""), at: Date.now() }; } catch {}
+  // Fork Zigerus (4.0.0.95): the hero watchdog reports the last teardown with what it finds. 4.0.0.96: and the four
+  // before it, because slidesInit's own reset always comes last in a boot and hid what started the teardown.
+  try {
+    const entry = { reason: String(reason || ""), at: Date.now() };
+    window.__jmsLastSliderCleanup = entry;
+    const ring = Array.isArray(window.__jmsSliderCleanupRing) ? window.__jmsSliderCleanupRing : [];
+    ring.push(entry);
+    window.__jmsSliderCleanupRing = ring.slice(-5);
+  } catch {}
   try { teardownAnimations(); } catch {}
   try { stopSlideTimer(); } catch {}
   try { window.__cleanupActiveWatch?.(); } catch {}

@@ -5,6 +5,17 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.96 (Zigerus build, Jellyfin 12)
+
+### Changes
+- **New home row: "Next in the Collection".** One card for each movie collection you are partway through, showing the next film you haven't watched. The most recently watched collection comes first, with up to 20 cards. It starts right after Next Up Episodes and moves in Home row order like any other row. Under each poster is a bar with one segment per film in the collection (watched / this card / not yet) and a line such as "4 of 5 · Star Wars" (a trailing " Collection" is dropped from the name). A legend under the row explains the bar, and the title's arrow opens the Collections library.
+  - **Which film:** the collection's films in release order, and the next one is the first unwatched film released after the newest one you've watched. Watched only 1–3 of five gives you 4. Watched only the second gives you the third, not the first. If nothing comes after it (you've only seen the newest), the first one you haven't seen.
+  - **Left out:** a collection whose next film you're partway through (it is already in Continue Watching), finished and unstarted collections, and collections of fewer than two films. Two copies of the same film (one TMDb id) count as one film. A film that is next in two collections gets one card.
+  - **Per profile**, and only with titles the profile may see (library access and parental limits apply). A profile without access to the Collections library sees no collections at all, so it gets no row, the same as everywhere else in Jellyfin.
+  - **Settings** (Home Rows tab, "Recently Added & Continue Watching", right under Next Up Episodes): on/off; "Only collections watched within" 3 months / 1 year (default) / Any time; card count (default 20, up to 30).
+  - New signed-in endpoint `GET /Plugins/JMSFusion/collection-next?days=&limit=`: computed per user in one pass over the user's collections and kept for 10 seconds.
+- The hero watchdog's log line (4.0.0.95) now lists the last five slider teardowns, not only the last one. The last is always the boot's own reset, which hid what started the teardown.
+
 ## 4.0.0.95 (Zigerus build, Jellyfin 12)
 
 ### Fixes
