@@ -25,6 +25,11 @@ public enum NativeTrailerMode
 /// </summary>
 public sealed class NativeTrailerSync
 {
+    // Zigerus fork: the ParticularFlix base looks for Brazilian-Portuguese trailers first (steps A1, B, A2),
+    // which gave an English household Portuguese hover previews. Off = English sources only (C, C2, D), and the
+    // TMDb title search and title/year lookup run in en-US. Kept as a gate, not deleted, so upstream merges stay clean.
+    private const bool PortugueseFirst = false;
+
     private const string BlockChannel = "claro|looke|vivo play|telecine|google play|oi play|itunes";
     private const string BlockTitle = "alugue|aluguel|compre agora";
     private const string RejectTitle = "(?i)(review|reaction|fan made|concept|breakdown|ending explained|podcast|vlog|unboxing|recap|open matte|extended trailer)";
@@ -269,7 +274,7 @@ public sealed class NativeTrailerSync
         if (string.IsNullOrWhiteSpace(tmdbId))
         {
             var url = "https://api.themoviedb.org/3/search/" + kind + "?api_key=" + Uri.EscapeDataString(tmdbKey)
-                + "&query=" + Uri.EscapeDataString(cleanTitle) + "&language=pt-BR";
+                + "&query=" + Uri.EscapeDataString(cleanTitle) + "&language=" + (PortugueseFirst ? "pt-BR" : "en-US");
             if (!string.IsNullOrEmpty(yearFolder))
             {
                 url += (isSeries ? "&first_air_date_year=" : "&year=") + yearFolder;
@@ -290,8 +295,10 @@ public sealed class NativeTrailerSync
         var tmdbYear = 0;
         if (!string.IsNullOrWhiteSpace(tmdbId))
         {
-            var ptInfo = await GetJsonAsync("https://api.themoviedb.org/3/" + kind + "/" + tmdbId + "?api_key=" + Uri.EscapeDataString(tmdbKey) + "&language=pt-BR", ct).ConfigureAwait(false);
             var enInfo = await GetJsonAsync("https://api.themoviedb.org/3/" + kind + "/" + tmdbId + "?api_key=" + Uri.EscapeDataString(tmdbKey) + "&language=en-US", ct).ConfigureAwait(false);
+            var ptInfo = PortugueseFirst
+                ? await GetJsonAsync("https://api.themoviedb.org/3/" + kind + "/" + tmdbId + "?api_key=" + Uri.EscapeDataString(tmdbKey) + "&language=pt-BR", ct).ConfigureAwait(false)
+                : enInfo;
             if (ptInfo != null)
             {
                 ptTitle = (string?)ptInfo[isSeries ? "name" : "title"];
@@ -311,6 +318,7 @@ public sealed class NativeTrailerSync
 
         if (string.IsNullOrWhiteSpace(enTitle)) { enTitle = cleanTitle; }
         if (string.IsNullOrWhiteSpace(ptTitle)) { ptTitle = cleanTitle; }
+        if (!PortugueseFirst) { ptTitle = enTitle; }
         var refYear = tmdbYear > 0 ? tmdbYear : yearInt;
         var yearTxt = refYear > 0 ? refYear.ToString(CultureInfo.InvariantCulture) : string.Empty;
 
@@ -345,7 +353,7 @@ public sealed class NativeTrailerSync
         var fonte = string.Empty;
 
         // A1) Prioridade maxima: trailer oficial do Brasil (pt, pais BR) listado no TMDb
-        if (!string.IsNullOrWhiteSpace(tmdbId) && !achou)
+        if (PortugueseFirst && !string.IsNullOrWhiteSpace(tmdbId) && !achou)
         {
             var chaves = await GetTmdbTrailerKeysAsync(kind, tmdbId!, "pt-BR", "pt", tmdbKey, 1, ct).ConfigureAwait(false);
             if (chaves.Count == 0) { Log("   TMDb Brasil: nenhum trailer oficial listado"); }
@@ -360,7 +368,7 @@ public sealed class NativeTrailerSync
         }
 
         // B) Busca no YouTube em portugues (titulo validado)
-        if (!achou && filtersTitulo.Count > 0)
+        if (PortugueseFirst && !achou && filtersTitulo.Count > 0)
         {
             Log("   Buscando no YouTube (portugues dublado): " + ptTitle + " " + yearTxt + " trailer dublado");
             if (await InvokeYtAsync(tk, cookies, folder, "ytsearch8:" + ptTitle + " " + yearTxt + " trailer oficial dublado", filtersDub, dateAfter, simulate, ct).ConfigureAwait(false))
@@ -379,7 +387,7 @@ public sealed class NativeTrailerSync
         }
 
         // A2) Sem trailer do Brasil: segue a regra do script, trailer oficial em portugues de outro pais
-        if (!string.IsNullOrWhiteSpace(tmdbId) && !achou)
+        if (PortugueseFirst && !string.IsNullOrWhiteSpace(tmdbId) && !achou)
         {
             var chaves = await GetTmdbTrailerKeysAsync(kind, tmdbId!, "pt-BR", "pt", tmdbKey, 2, ct).ConfigureAwait(false);
             foreach (var key in chaves)

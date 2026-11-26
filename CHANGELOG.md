@@ -5,6 +5,12 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.97 (Zigerus build, Jellyfin 12)
+
+### Fixes
+- **Downloaded trailers are English again.** The trailer downloader (the "JMS trailers" scheduled task and the new-item watcher) came from the ParticularFlix base, which is a Brazilian build: for every film or show it tried a Brazilian-Portuguese official trailer on TMDb first, then a dubbed or subtitled Portuguese YouTube search, then Portuguese trailers from other countries, and only after all three the English sources. So card hovers, which play the local `trailer.mp4` first, often played a Portuguese trailer. The Portuguese steps are now off (a `PortugueseFirst` switch in `Core/NativeTrailerSync.cs`, kept rather than removed so ParticularFlix merges stay clean). The order is now: TMDb official English trailer, then IMDb, then a YouTube English search. The TMDb title search and the title/year lookup run in en-US.
+- Trailers already downloaded are not replaced: the downloader skips any folder that already has a `trailer.mp4`. Remove a Portuguese one and the next run fetches the English trailer.
+
 ## 4.0.0.96 (Zigerus build, Jellyfin 12)
 
 ### Changes
