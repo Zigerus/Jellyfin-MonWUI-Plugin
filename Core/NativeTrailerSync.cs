@@ -29,7 +29,8 @@ public sealed class NativeTrailerSync
     // A2). The order now follows the plugin settings "Preferred language" / "Fallback language" (Trailers tab;
     // config PreferredLang / FallbackLang). Steps A1/A2 use the preferred language and its country, the
     // "dublado/legendado" YouTube searches run only when the preferred language is Portuguese, then the fallback
-    // language, then English (TMDb, IMDb, YouTube).
+    // language, then English (TMDb, IMDb, YouTube). 4.0.0.99: for a non-English original, an English-subtitled/dubbed
+    // YouTube search (S) runs before the generic English search, and the original-language trailer (N) is the last resort.
     private readonly record struct TrailerLocale(string Lang, string Iso, string Region);
 
     private static TrailerLocale ParseLocale(string? raw, string def)
@@ -309,7 +310,7 @@ public sealed class NativeTrailerSync
         }
 
         // 2) Titulos e ano oficiais
-        string? ptTitle = null, enTitle = null, origTitle = null;
+        string? ptTitle = null, enTitle = null, origTitle = null, origIso = null;
         var tmdbYear = 0;
         if (!string.IsNullOrWhiteSpace(tmdbId))
         {
@@ -331,6 +332,7 @@ public sealed class NativeTrailerSync
             if (enInfo != null)
             {
                 enTitle = (string?)enInfo[isSeries ? "name" : "title"];
+                origIso = ((string?)enInfo["original_language"])?.Trim().ToLowerInvariant();
             }
         }
 
@@ -465,6 +467,25 @@ public sealed class NativeTrailerSync
             }
         }
 
+        // Zigerus fork 4.0.0.99 (Nathan 2026-11-26: "if the trailer is not available in English it should be in the native
+        // language with English subtitles when possible"). For a title whose original language is not English: TMDb lists
+        // the subtitled / dubbed cuts under English, so A1/C already prefer them (dubbed first, see the ranking). When TMDb
+        // has none, S searches YouTube for an English-subtitled or English-dubbed upload before the generic English search,
+        // and N takes the official original-language trailer only as the last resort. Native trailers almost never carry
+        // an English caption track on YouTube (checked 2026-11-26), so subtitles are not burned in.
+        var foreignOriginal = !string.IsNullOrWhiteSpace(origIso) && origIso != "en" && origIso!.Length == 2;
+        if (foreignOriginal && !achou && filtersTitulo.Count > 0)
+        {
+            var filtersSub = filtersTitulo
+                .Select(f => f + " & title ~= (?i)(english|\\beng\\b|subtitled|subbed|\\bsubs?\\b|dubbed)")
+                .ToList();
+            Log("   Buscando no YouTube (legendado/dublado em ingles): " + enTitle + " " + yearTxt + " trailer english subtitles");
+            if (await InvokeYtAsync(tk, cookies, folder, "ytsearch8:" + enTitle + " " + yearTxt + " trailer english subtitles", filtersSub, null, simulate, ct).ConfigureAwait(false))
+            {
+                achou = true; fonte = "YouTube en (legendado/dublado)";
+            }
+        }
+
         // D) Busca no YouTube em ingles (titulo validado)
         if (!achou && filtersTitulo.Count > 0)
         {
@@ -474,6 +495,21 @@ public sealed class NativeTrailerSync
             if (await InvokeYtAsync(tk, cookies, folder, q, filtersTitulo, dateAfter, simulate, ct).ConfigureAwait(false))
             {
                 achou = true; fonte = "YouTube en";
+            }
+        }
+
+        // N) Ultimo recurso: trailer oficial no idioma original (sem legenda), quando nada em ingles foi encontrado
+        if (foreignOriginal && origIso != pref.Iso && !string.IsNullOrWhiteSpace(tmdbId) && !achou)
+        {
+            var chaves = await GetTmdbTrailerKeysAsync(kind, tmdbId!, origIso!, origIso!, string.Empty, tmdbKey, 0, ct).ConfigureAwait(false);
+            if (chaves.Count == 0) { Log("   TMDb " + origIso + " (idioma original): nenhum trailer oficial listado"); }
+            foreach (var key in chaves)
+            {
+                Log("   Sem trailer em ingles; tentando o trailer no idioma original (" + origIso + ") do TMDb: https://www.youtube.com/watch?v=" + key);
+                if (await InvokeYtAsync(tk, cookies, folder, "https://www.youtube.com/watch?v=" + key, filtroSoDuracao, null, simulate, ct).ConfigureAwait(false))
+                {
+                    achou = true; fonte = "TMDb " + origIso + " (idioma original, sem legenda)"; break;
+                }
             }
         }
 
@@ -641,7 +677,9 @@ public sealed class NativeTrailerSync
             }
 
             var name = (string?)r["name"] ?? string.Empty;
-            var dub = Regex.IsMatch(name, "(?i)dublad") ? 2 : Regex.IsMatch(name, "(?i)legendad") ? 1 : 0;
+            // Fork 4.0.0.99: language-neutral. Among trailers in the wanted language, a dubbed cut (audio in that language)
+            // ranks above a subtitled one, which ranks above the rest (e.g. TMDb en entries "[Dubbed]" / "[Subtitled]").
+            var dub = Regex.IsMatch(name, @"(?i)(dublad|dublagem|\bdub(bed)?\b)") ? 2 : Regex.IsMatch(name, @"(?i)(legendad|subtitl|\bsub(bed|s)?\b)") ? 1 : 0;
             var br = region.Length == 2 && string.Equals((string?)r["iso_3166_1"], region, StringComparison.OrdinalIgnoreCase) ? 1 : 0;
             if ((brFilter == 1 && br == 0) || (brFilter == 2 && br == 1))
             {

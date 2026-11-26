@@ -5,6 +5,19 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.99 (Zigerus build, Jellyfin 12)
+
+### Changes
+- **Foreign-language films and shows: English-subtitled trailers before untranslated ones.** When a title's original language is not English, the downloader now tries, in order:
+  1. TMDb trailers listed under English. For foreign titles these are usually the dubbed or subtitled cuts; a **dubbed** cut now ranks above a **subtitled** one, which ranks above the rest.
+  2. IMDb.
+  3. A YouTube search for an English-subtitled or English-dubbed upload (the video title must name the show or film and say English / subtitled / subbed / dubbed).
+  4. The generic YouTube English search.
+  5. **Last resort:** the official TMDb trailer in the original language, without subtitles.
+
+  Before, a foreign title with no English trailer got nothing, or whatever the English search turned up first. Subtitles are not burned in: original-language trailers on YouTube almost never carry an English caption track.
+- The "dubbed / subtitled" ranking of TMDb trailers is language-neutral (it used to match only the Portuguese words).
+
 ## 4.0.0.98 (Zigerus build, Jellyfin 12)
 
 ### Changes
