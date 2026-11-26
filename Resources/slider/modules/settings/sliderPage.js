@@ -133,7 +133,7 @@ export function createSliderPanel(config, labels) {
   const tmdbLangSelect = createSelectSimple(
     'tmdbReviewsLang',
     labels.tmdbReviewsLang || 'Yorum Dili',
-    lsGet(LS_TMDB_LANG, 'tr-TR'),
+    lsGet(LS_TMDB_LANG, 'en-US'),
     [
       { value: 'tr-TR', label: '🇹🇷 Türkçe (tr-TR)' },
       { value: 'en-US', label: '🇺🇸 English (en-US)' },

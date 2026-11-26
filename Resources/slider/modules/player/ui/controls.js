@@ -87,8 +87,8 @@ export function toggleMute() {
   const { audio, volumeBtn, volumeSlider } = musicPlayerState;
 
   if (!audio || !volumeBtn || !volumeSlider) {
-    console.error('Ses kontrolleri başlatılamadı');
-    showNotification('<i class="fas fa-volume-mute crossed-icon"></i> Ses kontrolleri yüklenemedi', 2000, 'error');
+    console.error('Volume controls could not be initialised');
+    showNotification('<i class="fas fa-volume-mute crossed-icon"></i> Volume controls could not be loaded', 2000, 'error');
     return;
   }
 
@@ -114,7 +114,7 @@ export function toggleMute() {
 
 export function changeVolume(delta) {
   if (!areVolumeControlsReady()) {
-    console.error('Ses kontrolleri başlatılamadı');
+    console.error('Volume controls could not be initialised');
     return;
   }
 

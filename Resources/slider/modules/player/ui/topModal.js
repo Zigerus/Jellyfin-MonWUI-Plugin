@@ -273,7 +273,7 @@ async function showSaveToPlaylistModal() {
   nameInput.value = `${activeTab === 'top' ? config.languageLabels.topTracks :
                   activeTab === 'recent' ? config.languageLabels.recentlyPlayed :
                   activeTab === 'latest' ? config.languageLabels.latestTracks :
-                  config.languageLabels.favorites} - ${new Date().toLocaleString(config.dateLocale || 'tr-TR', {
+                  config.languageLabels.favorites} - ${new Date().toLocaleString(config.dateLocale || 'en-US', {
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
@@ -658,7 +658,7 @@ function formatDate(date) {
   } else if (diffInDays < 7) {
     return `${diffInDays} ${config.languageLabels.daysAgo || 'gün önce'}`;
   } else {
-    return date.toLocaleDateString(config.dateLocale || 'tr-TR', {
+    return date.toLocaleDateString(config.dateLocale || 'en-US', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',

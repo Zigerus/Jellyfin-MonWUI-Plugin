@@ -604,7 +604,7 @@ export function ensureJmsDetailsOverlay({
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "jms-details-btn";
-  btn.setAttribute("aria-label", "Ayrıntılar");
+  btn.setAttribute("aria-label", config?.languageLabels?.details || "Details");
 
   const arrowIcon = document.createElement("span");
   arrowIcon.className = "jms-details-arrow";
@@ -656,7 +656,7 @@ export function ensureJmsDetailsOverlay({
     const playBtn = document.createElement("button");
     playBtn.type = "button";
     playBtn.className = "jms-play-btn";
-    playBtn.setAttribute("aria-label", "Şimdi Oynat");
+    playBtn.setAttribute("aria-label", config?.languageLabels?.playNowLabel || "Play Now");
     playBtn.innerHTML = `
       <span class="jms-play-icon" style="display:flex;align-items:center;justify-content:center;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -899,7 +899,7 @@ export function createTrailerIframe({
         } catch (err) {
           console.error("PlayNow click error:", err);
           if (typeof window.showMessage === "function") {
-            window.showMessage("PlayNow çalıştırılırken hata oluştu", "error");
+            window.showMessage(config?.languageLabels?.playStartFailed || "Playback could not be started.", "error");
           }
         }
       },

@@ -131,7 +131,7 @@ function buildModal(genres, token) {
   applyBtn.innerHTML = `<i class="fas fa-check-circle"></i> ${config.languageLabels?.applyFilter || "Uygula"}`;
 
   actionButtons.append(selectAllBtn, selectNoneBtn, clearFilterBtn, applyBtn);
-  const sorted = [...genres].sort((a, b) => (a.Name || "").localeCompare(b.Name || "", "tr", { sensitivity: "base" }));
+  const sorted = [...genres].sort((a, b) => (a.Name || "").localeCompare(b.Name || "", undefined, { sensitivity: "base" }));
   let currentLetter = "";
   sorted.forEach((genre) => {
     const name = genre.Name || "";

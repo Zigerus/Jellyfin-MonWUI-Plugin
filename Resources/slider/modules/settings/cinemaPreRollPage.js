@@ -90,7 +90,7 @@ function inferRegionFromConfig(config = {}) {
   const fallbackLanguage = (
     typeof navigator !== "undefined" && navigator.language
       ? navigator.language
-      : "tr-TR"
+      : "en-US"
   );
   const language = String(
     languageSetting === "auto"

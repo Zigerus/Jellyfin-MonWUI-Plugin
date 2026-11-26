@@ -2177,7 +2177,7 @@ function formatDateTime(ts) {
 
   try {
     return new Intl.DateTimeFormat(
-      config?.timeLocale || config?.dateLocale || "tr-TR",
+      config?.timeLocale || config?.dateLocale || "en-US",
       sameDay
         ? { hour: "2-digit", minute: "2-digit" }
         : { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }

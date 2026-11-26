@@ -936,7 +936,7 @@ function computeConfig() {
     historylimit: parseInt(localStorage.getItem('historylimit'), 10) || 10,
     playerTheme: localStorage.getItem('playerTheme') || 'dark',
     playerStyle: localStorage.getItem('playerStyle') || 'player',
-    dateLocale: localStorage.getItem('dateLocale') || 'tr-TR',
+    dateLocale: localStorage.getItem('dateLocale') || 'en-US',
     maxExcludeIdsForUri: parseInt(localStorage.getItem('maxExcludeIdsForUri'), 10) || 100,
     nextTrack: parseInt(localStorage.getItem('nextTrack'), 10) || 100,
     topTrack: parseInt(localStorage.getItem('topTrack'), 10) || 30,

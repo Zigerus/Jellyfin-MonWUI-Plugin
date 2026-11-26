@@ -73,7 +73,7 @@ function sortAvatars(list) {
     if (!isNaN(na) && !isNaN(nb)) return na - nb;
     if (!isNaN(na)) return -1;
     if (!isNaN(nb)) return 1;
-    return a.localeCompare(b, "tr");
+    return a.localeCompare(b);
   });
 }
 

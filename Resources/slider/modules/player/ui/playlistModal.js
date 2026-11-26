@@ -167,7 +167,7 @@ async function showSaveModal() {
   nameInput.placeholder = config.languageLabels.enterPlaylistName;
   nameInput.id = "playlist-save-name-input";
   nameInput.name = "playlist-save-name-input";
-  nameInput.value = `GMMP Oynatma Listesi ${new Date().toLocaleString(config.dateLocale || 'tr-TR', {
+  nameInput.value = `${config.languageLabels?.defaultPlaylistName || 'Playlist'} ${new Date().toLocaleString(config.dateLocale || 'en-US', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

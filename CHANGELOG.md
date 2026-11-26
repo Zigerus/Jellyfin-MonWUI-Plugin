@@ -5,6 +5,31 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.98 (Zigerus build, Jellyfin 12)
+
+### Changes
+- **Trailer languages are a setting again.** Settings → Trailers has **Preferred language** and **Fallback language** pickers (saved to the plugin's `PreferredLang` / `FallbackLang`). ParticularFlix had removed them and hard-coded Brazilian Portuguese into the downloader. The downloader (scheduled task + new-item watcher) now uses them in this order:
+  1. a TMDb official trailer in the preferred language, from its own country first;
+  2. the same language from another country;
+  3. the Portuguese "dublado/legendado" YouTube searches, only when the preferred language is Portuguese;
+  4. a TMDb official trailer in the fallback language;
+  5. English (TMDb, IMDb, a YouTube English search).
+
+  The TMDb title search runs in the preferred language. Both settings default to English (US). The Trailers help text no longer says Brazilian Portuguese.
+- **English defaults everywhere a language setting is blank or unrecognised.** ParticularFlix used Turkish for these.
+  - Server: trailer preferred language, Seerr search language, the cinema pre-roll locale and region, and the boot caption.
+  - UI: date/time format, TMDb reviews language, Seerr settings, and pre-roll language.
+
+  Saved settings are not touched.
+
+### Fixes
+- **The MonWUI settings overlay now closes when you leave it.** Before, choosing Dashboard (profile button → Who's watching → ⚙ → Dashboard) or any other page left the overlay over the new page until it was closed by hand. It now closes on any page change and on a click in Jellyfin's header outside it. Escape and × still work. Clicks inside it, in its own dialogs (Default values confirm, position editor, trailer run window) and on the header gear keep it open.
+- **No hard-coded Turkish left in the UI.**
+  - The play-failure alerts ("Oynatma başarısız") and the hover/card button labels ("Ayrıntılar", "Şimdi Oynat") are now English labels.
+  - Also fixed: the music player's toggle label, its volume-control error, its network error, and the default playlist name ("GMMP Oynatma Listesi").
+  - Status labels were lowercased with Turkish rules, which turn "I" into a dotless "ı". They now use the browser's locale, and so does the music/genre/avatar sorting.
+  - Six English labels that fell back to Turkish were added.
+
 ## 4.0.0.97 (Zigerus build, Jellyfin 12)
 
 ### Fixes

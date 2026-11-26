@@ -536,8 +536,57 @@ function setDocumentScrollLocked(lock) {
   }
 }
 
+// Zigerus fork 4.0.0.98: the overlay also closes when the page navigates (e.g. Dashboard from the header's user
+// menu) and on a click in Jellyfin's own page chrome outside it. Lumen §13 makes the overlay fill the window under
+// the header, so there is no backdrop left to click; the header is the "outside". Clicks in MonWUI's own sub-dialogs
+// (appended to <body>, outside the app root) and on the header gear never close it.
+const SETTINGS_OUTSIDE_CHROME = '.skinHeader, .MuiAppBar-root, header, .mainDrawer, .MuiDrawer-root, .mainAnimatedPages, #reactRoot';
+
+function detachSettingsAutoClose(modal) {
+  if (!modal) return;
+  if (modal.__outsidePointerHandler) {
+    document.removeEventListener('pointerdown', modal.__outsidePointerHandler, true);
+    delete modal.__outsidePointerHandler;
+  }
+  if (modal.__routeHandler) {
+    window.removeEventListener('hashchange', modal.__routeHandler);
+    window.removeEventListener('popstate', modal.__routeHandler);
+    document.removeEventListener('viewshow', modal.__routeHandler, true);
+    delete modal.__routeHandler;
+  }
+  if (modal.__routeTimer) {
+    clearInterval(modal.__routeTimer);
+    delete modal.__routeTimer;
+  }
+}
+
+function attachSettingsAutoClose(modal) {
+  detachSettingsAutoClose(modal);
+  const openedHref = location.href;
+
+  modal.__routeHandler = () => {
+    if (location.href !== openedHref) closeLocalSettingsShell(modal);
+  };
+  window.addEventListener('hashchange', modal.__routeHandler);
+  window.addEventListener('popstate', modal.__routeHandler);
+  document.addEventListener('viewshow', modal.__routeHandler, true);
+  // Jellyfin 12's router navigates with history.pushState, which fires no event.
+  modal.__routeTimer = setInterval(modal.__routeHandler, 400);
+
+  modal.__outsidePointerHandler = (event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || !modal.isConnected) return;
+    if (modal.contains(target)) return;
+    if (target.closest('#jfSettingsBtn')) return;
+    if (!target.closest(SETTINGS_OUTSIDE_CHROME)) return;
+    closeLocalSettingsShell(modal);
+  };
+  document.addEventListener('pointerdown', modal.__outsidePointerHandler, true);
+}
+
 function closeLocalSettingsShell(modal) {
   if (!modal) return;
+  detachSettingsAutoClose(modal);
 
   if (modal.__overlayEscapeHandler) {
     window.removeEventListener('keydown', modal.__overlayEscapeHandler);
@@ -618,11 +667,13 @@ function prepareModalForLocalShell(modal) {
 
   modal.style.display = 'block';
   setDocumentScrollLocked(true);
+  attachSettingsAutoClose(modal);
   return modal;
 }
 
 function prepareModalForEmbeddedPage(modal) {
   if (!modal) return modal;
+  detachSettingsAutoClose(modal);
 
   const modalContent = modal.querySelector('.settings-modal-content');
   const title = modalContent?.querySelector('h2');

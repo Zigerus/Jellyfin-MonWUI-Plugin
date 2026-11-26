@@ -275,7 +275,7 @@ namespace Jellyfin.Plugin.JMSFusion
       if (value === "rus" || base === "ru") return "rus";
     }
 
-    return "tur";
+    return "eng";
   }
 
   var lang = "";

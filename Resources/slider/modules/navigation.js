@@ -1243,15 +1243,15 @@ export function createDotNavigation() {
         e.stopPropagation();
         const itemId = slide.dataset.itemId;
         if (!itemId) {
-        alert("Oynatma başarısız: itemId bulunamadı");
+        alert((getConfig()?.languageLabels?.playbackFailed || "Playback failed") + ": itemId not found");
         return;
       }
       closeVideoModal();
       try {
         await playNow(itemId);
       } catch (error) {
-        console.error("Oynatma hatası:", error);
-        alert("Oynatma başarısız: " + error.message);
+        console.error("Playback error:", error);
+        alert((getConfig()?.languageLabels?.playbackFailed || "Playback failed") + ": " + error.message);
       } finally {
         closeVideoModal();
       }

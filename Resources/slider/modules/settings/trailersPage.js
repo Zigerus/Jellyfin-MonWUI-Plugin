@@ -734,7 +734,7 @@ export function createTrailersPanel(config, labels) {
   const nativeInfo = document.createElement('div');
   nativeInfo.className = 'description-text';
   nativeInfo.style.margin = '6px 0 14px';
-  nativeInfo.textContent = labels?.nativeTrailersInfo || 'Trailers are now downloaded automatically by the scheduled task "JMSFusion: sincronizar trailers" (Dashboard > Scheduled Tasks) and whenever a new movie or series is added. The main preference is the Brazilian Portuguese (BR) trailer; if none is found, the search continues in the background with the English trailer. The YouTube cookies file is optional: /config/cookies.txt or the JMSFUSION_COOKIES variable.';
+  nativeInfo.textContent = labels?.nativeTrailersInfo || 'Trailers are downloaded automatically by the scheduled task "JMSFusion: sincronizar trailers" (Dashboard > Scheduled Tasks) and whenever a new movie or series is added. The search tries the preferred language below first (its own country first), then the fallback language, then English. The YouTube cookies file is optional: /config/cookies.txt or the JMSFUSION_COOKIES variable.';
   section.appendChild(nativeInfo);
 
   const nonAdminInfo = document.createElement('div');
@@ -1148,6 +1148,23 @@ export function createTrailersPanel(config, labels) {
       tmdbNote.textContent = `${L.tmdbApiKey}: ${(labels?.tmdbManagedInSlider || 'Slider sekmesindeki tek alandan yönetilir ve burada global config kullanılır.')}`;
       adminOnlyWrap.appendChild(tmdbNote);
 
+      // Zigerus fork 4.0.0.98: the trailer languages are settings again (ParticularFlix had dropped the inputs and
+      // hard-coded Brazilian Portuguese in the downloader).
+      const TRAILER_LANG_OPTIONS = [
+        ['en-US', 'English (US)'], ['en-GB', 'English (UK)'], ['de-DE', 'Deutsch'], ['es-ES', 'Español (España)'],
+        ['es-MX', 'Español (México)'], ['fr-FR', 'Français'], ['it-IT', 'Italiano'], ['ja-JP', '日本語'],
+        ['pt-BR', 'Português (Brasil)'], ['pt-PT', 'Português (Portugal)'], ['ru-RU', 'Русский'], ['tr-TR', 'Türkçe']
+      ];
+      const langOptionsWith = (current) => {
+        const list = TRAILER_LANG_OPTIONS.map(([value, label]) => ({ value, label }));
+        if (current && !list.some((o) => o.value === current)) list.unshift({ value: current, label: current });
+        return list;
+      };
+      const prefLang = pickConfigValue(currentConfig, 'preferredLang', 'PreferredLang') || 'en-US';
+      const fallLang = pickConfigValue(currentConfig, 'fallbackLang', 'FallbackLang') || 'en-US';
+      adminOnlyWrap.appendChild(createSelectWrap('PreferredLang', labels?.preferredLang || 'Preferred language', langOptionsWith(prefLang), prefLang));
+      adminOnlyWrap.appendChild(createSelectWrap('FallbackLang', labels?.fallbackLang || 'Fallback language', langOptionsWith(fallLang), fallLang));
+
       adminOnlyWrap.appendChild(createCheckbox('EnableThemeLink', L.enableThemeLink, themeLinkEnabled));
       setCheckboxValue('EnableThemeLink', themeLinkEnabled);
 
@@ -1206,6 +1223,8 @@ export function createTrailersPanel(config, labels) {
 
           pushIf('EnableThemeLink', document.getElementById('EnableThemeLink')?.checked ? 1 : 0);
           pushIf('ThemeLinkMode', document.getElementById('ThemeLinkMode')?.value || 'symlink');
+          pushIf('PreferredLang', document.getElementById('PreferredLang')?.value);
+          pushIf('FallbackLang', document.getElementById('FallbackLang')?.value);
 
           const headers = await getAuthHeaders();
           const res = await fetch('/JMSFusion/config', { method: 'POST', headers, body: JSON.stringify(payload) });
@@ -1248,7 +1267,7 @@ export function createTrailersPanel(config, labels) {
       runDownloader: getChk(trailerDownloaderCheckbox)?.checked || false,
       runUrlNfo: getChk(trailerUrlNfoCheckbox)?.checked || false,
       jfBase: autoJfBase,
-      preferredLang: document.getElementById('PreferredLang')?.value || pickConfigValue(currentConfig, 'preferredLang', 'PreferredLang') || 'tr-TR',
+      preferredLang: document.getElementById('PreferredLang')?.value || pickConfigValue(currentConfig, 'preferredLang', 'PreferredLang') || 'en-US',
       fallbackLang: document.getElementById('FallbackLang')?.value || pickConfigValue(currentConfig, 'fallbackLang', 'FallbackLang') || 'en-US',
       maxConcurrentDownloads: normalizeConcurrentDownloads(
         document.getElementById('MaxConcurrentDownloads')?.value

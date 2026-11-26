@@ -856,10 +856,10 @@ export function createVideoModal({ showButtons = true, context = 'monwui-dot' } 
   playButton.addEventListener('click', async (e) => {
     e.stopPropagation();
     const itemId = modal.dataset.itemId;
-    if (!itemId) { alert("Oynatma başarısız: itemId bulunamadı"); return; }
+    if (!itemId) { alert((config?.languageLabels?.playbackFailed || "Playback failed") + ": itemId not found"); return; }
     closeVideoModal();
     try { await playNow(itemId); }
-    catch (error) { console.error("Oynatma hatası:", error); alert("Oynatma başarısız: " + error.message); }
+    catch (error) { console.error("Playback error:", error); alert((config?.languageLabels?.playbackFailed || "Playback failed") + ": " + error.message); }
     finally { closeVideoModal(); }
   });
 

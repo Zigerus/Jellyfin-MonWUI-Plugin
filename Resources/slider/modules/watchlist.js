@@ -2046,7 +2046,7 @@ async function fetchShareableUsers() {
         name: text(user?.Name || user?.Username || user?.name || user?.username)
       }))
       .filter((user) => user.id && user.name && user.id !== currentUserId)
-      .sort((left, right) => left.name.localeCompare(right.name, cfg()?.dateLocale || "tr-TR"));
+      .sort((left, right) => left.name.localeCompare(right.name, cfg()?.dateLocale || "en-US"));
 
     return usersCache;
   })().finally(() => {
@@ -3677,7 +3677,7 @@ function formatDate(ts) {
   if (Number.isNaN(date.getTime())) return "";
 
   try {
-    return new Intl.DateTimeFormat(cfg()?.dateLocale || "tr-TR", {
+    return new Intl.DateTimeFormat(cfg()?.dateLocale || "en-US", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric"
@@ -3690,7 +3690,7 @@ function formatDate(ts) {
 function formatCount(value) {
   const count = Math.max(0, Math.trunc(Number(value || 0)));
   try {
-    return new Intl.NumberFormat(cfg()?.timeLocale || cfg()?.dateLocale || "tr-TR").format(count);
+    return new Intl.NumberFormat(cfg()?.timeLocale || cfg()?.dateLocale || "en-US").format(count);
   } catch {
     return String(count);
   }
@@ -3719,7 +3719,7 @@ function formatDateTime(ts) {
   const sameDay = now.toDateString() === date.toDateString();
 
   try {
-    return new Intl.DateTimeFormat(cfg()?.timeLocale || cfg()?.dateLocale || "tr-TR", sameDay ? {
+    return new Intl.DateTimeFormat(cfg()?.timeLocale || cfg()?.dateLocale || "en-US", sameDay ? {
       hour: "2-digit",
       minute: "2-digit"
     } : {
@@ -4156,7 +4156,7 @@ function getContainerPreviewFields() {
 }
 
 function compareText(left, right) {
-  return text(left).localeCompare(text(right), cfg()?.dateLocale || "tr-TR", {
+  return text(left).localeCompare(text(right), cfg()?.dateLocale || "en-US", {
     numeric: true,
     sensitivity: "base"
   });

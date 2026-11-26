@@ -257,7 +257,7 @@ function statusLabel(status) {
 
 function lowerStatusLabel(status) {
   const label = statusLabel(status);
-  try { return label.toLocaleLowerCase("tr-TR"); } catch { return label.toLowerCase(); }
+  try { return label.toLocaleLowerCase(); } catch { return label.toLowerCase(); }
 }
 
 function statusMessage(result) {

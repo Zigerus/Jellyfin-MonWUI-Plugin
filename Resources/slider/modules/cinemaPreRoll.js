@@ -269,7 +269,7 @@ function cinemaSerrStatusLabel(status) {
 
 function cinemaSerrLowerStatusLabel(status) {
   const label = cinemaSerrStatusLabel(status);
-  try { return label.toLocaleLowerCase("tr-TR"); } catch { return label.toLowerCase(); }
+  try { return label.toLocaleLowerCase(); } catch { return label.toLowerCase(); }
 }
 
 function cinemaSerrStatusMessage(result) {

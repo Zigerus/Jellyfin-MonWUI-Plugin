@@ -389,7 +389,7 @@ const USER_ONLY_KEYS = [
             playerTheme: formData.get('playerTheme'),
             playerStyle: formData.get('playerStyle'),
             defaultLanguage: formData.get('defaultLanguage'),
-            dateLocale: formData.get('dateLocale') || 'tr-TR',
+            dateLocale: formData.get('dateLocale') || 'en-US',
             sliderDuration: parseInt(formData.get('sliderDuration'), 10),
             limit: parseInt(formData.get('limit'), 10),
             onlyUnwatchedRandom: formData.get('onlyUnwatchedRandom') === 'on',

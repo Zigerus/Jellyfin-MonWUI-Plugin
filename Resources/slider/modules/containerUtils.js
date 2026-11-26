@@ -463,7 +463,7 @@ export function createStatusContainer(config, UserData, RunTimeTicks) {
     const formatEndTimeLocalized = (ticks) => {
       const totalMinutes = Math.floor(ticks / 600000000);
       const end = new Date(Date.now() + totalMinutes * 60 * 1000);
-      const locale = String(config?.languageLabels?.timeLocale || "tr-TR").trim() || "tr-TR";
+      const locale = String(config?.languageLabels?.timeLocale || "en-US").trim() || "en-US";
 
       try {
         return new Intl.DateTimeFormat(locale, {

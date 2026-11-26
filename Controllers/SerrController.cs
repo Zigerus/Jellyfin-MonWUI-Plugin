@@ -4160,14 +4160,14 @@ namespace Jellyfin.Plugin.JMSFusion.Controllers
         private static string NormalizeLanguage(string? value)
         {
             var lang = (value ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(lang)) return "tr";
+            if (string.IsNullOrWhiteSpace(lang)) return "en";
             return lang.Length > 12 ? lang[..12] : lang;
         }
 
         private static string NormalizeTmdbLanguage(string? value)
         {
             var lang = NormalizeLanguage(value).Replace('_', '-').Trim();
-            if (string.IsNullOrWhiteSpace(lang)) return "tr-TR";
+            if (string.IsNullOrWhiteSpace(lang)) return "en-US";
 
             var lower = lang.ToLowerInvariant();
             return lower switch

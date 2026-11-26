@@ -117,7 +117,7 @@ function setValues(panel, settings = {}) {
   set("serrEnabled", settings.enabled === true);
   set("serrBaseUrl", settings.baseUrl || "");
   set("serrApiKey", settings.apiKey || "");
-  set("serrDefaultLanguage", settings.defaultLanguage || "tr");
+  set("serrDefaultLanguage", settings.defaultLanguage || "en");
   set("serrRequestAsJellyfinUser", settings.requestAsJellyfinUser !== false);
   set("serrEnable4KRequests", settings.enable4KRequests === true);
   set("serrConfirmRequests", settings.enable4KRequests === true || settings.confirmRequests !== false);
@@ -300,7 +300,7 @@ function readValues(panel) {
     enabled: checked("serrEnabled"),
     baseUrl: text(value("serrBaseUrl")),
     apiKey: text(value("serrApiKey")),
-    defaultLanguage: text(value("serrDefaultLanguage"), "tr"),
+    defaultLanguage: text(value("serrDefaultLanguage"), "en"),
     requestAsJellyfinUser: checked("serrRequestAsJellyfinUser"),
     confirmRequests: enable4KRequests ? true : checked("serrConfirmRequests"),
     showMissingSearchButton: checked("serrShowMissingSearchButton"),
@@ -429,7 +429,7 @@ export function createSerrPanel(config, labels) {
   section.appendChild(createInput(
     "serrDefaultLanguage",
     L(labels, "serrDefaultLanguage", "Seerr arama dili"),
-    "tr",
+    "en",
     { placeholder: "tr, en, en-US" }
   ));
   section.appendChild(createCheckbox(

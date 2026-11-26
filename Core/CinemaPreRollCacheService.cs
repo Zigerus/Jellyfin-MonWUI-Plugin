@@ -72,8 +72,8 @@ public sealed class CinemaPreRollCacheService
     {
         public string CacheFile { get; set; } = CacheFileName;
         public string CacheKey { get; set; } = string.Empty;
-        public string Language { get; set; } = "tr-TR";
-        public string Region { get; set; } = "TR";
+        public string Language { get; set; } = "en-US";
+        public string Region { get; set; } = "US";
         public long UpdatedAtUtc { get; set; }
         public int TargetItemCount { get; set; }
         public bool Stale { get; set; }
@@ -126,8 +126,8 @@ public sealed class CinemaPreRollCacheService
     private sealed class LocaleCacheModel
     {
         public string CacheKey { get; set; } = string.Empty;
-        public string Language { get; set; } = "tr-TR";
-        public string Region { get; set; } = "TR";
+        public string Language { get; set; } = "en-US";
+        public string Region { get; set; } = "US";
         public long UpdatedAtUtc { get; set; }
         public int TargetItemCount { get; set; }
         public List<CacheItem> Items { get; set; } = new();
@@ -1244,7 +1244,7 @@ public sealed class CinemaPreRollCacheService
 
     private static string NormalizeTmdbLanguage(string? raw)
     {
-        var value = string.IsNullOrWhiteSpace(raw) ? "tr-TR" : raw.Trim().Replace("_", "-");
+        var value = string.IsNullOrWhiteSpace(raw) ? "en-US" : raw.Trim().Replace("_", "-");
         if (System.Text.RegularExpressions.Regex.IsMatch(value, "^[a-z]{2}-[A-Z]{2}$"))
         {
             return value;
@@ -1259,7 +1259,11 @@ public sealed class CinemaPreRollCacheService
             "fr" or "fre" or "fra" => "fr-FR",
             "ru" or "rus" => "ru-RU",
             "es" or "spa" => "es-ES",
-            _ => "tr-TR"
+            "it" or "ita" => "it-IT",
+            "ja" or "jpn" => "ja-JP",
+            "pt" or "por" => "pt-BR",
+            _ when lower.Length == 2 => lower + "-" + lower.ToUpperInvariant(),
+            _ => "en-US"
         };
     }
 

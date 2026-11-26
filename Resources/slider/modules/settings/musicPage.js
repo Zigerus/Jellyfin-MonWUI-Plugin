@@ -321,7 +321,7 @@ async function startLyricsJob(labels, refs) {
   } catch (e) {
     startBtn.disabled = false;
     cancelBtn.disabled = true;
-    status.textContent = 'Ağ hatası';
+    status.textContent = getConfig()?.languageLabels?.networkError || 'Network error';
   }
 }
 

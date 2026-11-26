@@ -62,7 +62,7 @@ namespace Jellyfin.Plugin.JMSFusion
         public string TmdbApiKey { get; set; } = "CHANGE_ME";
 
         [JsonPropertyName("preferredLang")]
-        public string PreferredLang { get; set; } = "tr-TR";
+        public string PreferredLang { get; set; } = "en-US";
 
         [JsonPropertyName("fallbackLang")]
         public string FallbackLang { get; set; } = "en-US";
@@ -184,7 +184,7 @@ namespace Jellyfin.Plugin.JMSFusion
         public string SerrApiKey { get; set; } = string.Empty;
 
         [JsonPropertyName("serrDefaultLanguage")]
-        public string SerrDefaultLanguage { get; set; } = "tr";
+        public string SerrDefaultLanguage { get; set; } = "en";
 
         [JsonPropertyName("serrRequestAsJellyfinUser")]
         public bool SerrRequestAsJellyfinUser { get; set; } = true;

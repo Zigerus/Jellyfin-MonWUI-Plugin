@@ -16,7 +16,8 @@ export function normalizeCinemaPreRollLanguage(raw) {
   if (lower === "it" || lower === "ita") return "it-IT";
   if (lower === "ja" || lower === "jp" || lower === "jpn") return "ja-JP";
   if (lower === "pt" || lower === "por") return "pt-BR";
-  return "tr-TR";
+  if (/^[a-z]{2}$/.test(lower)) return `${lower}-${lower.toUpperCase()}`;
+  return "en-US";
 }
 
 export function normalizeCinemaPreRollLanguageSetting(raw) {
@@ -57,7 +58,7 @@ export function resolveCinemaPreRollLocale(source = getConfig()) {
   const fallbackLanguage = (
     typeof navigator !== "undefined" && navigator.language
       ? navigator.language
-      : "tr-TR"
+      : "en-US"
   );
   const languageSetting = normalizeCinemaPreRollLanguageSetting(cfg?.cinemaPreRollLanguage);
   const language = normalizeCinemaPreRollLanguage(

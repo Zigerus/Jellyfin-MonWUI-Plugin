@@ -213,15 +213,15 @@ function sortTracks(tracks, sortOption) {
   switch (sortOption) {
     case SORT_OPTIONS.ALPHABETICAL:
       return sorted.sort((a, b) => {
-        const cmp = (a.Name || "").localeCompare(b.Name || "", "tr", { sensitivity: "base" });
+        const cmp = (a.Name || "").localeCompare(b.Name || "", undefined, { sensitivity: "base" });
         return asc ? cmp : -cmp;
       });
     case SORT_OPTIONS.ARTIST:
       return sorted.sort((a, b) => {
         const aA = (a.Artists?.[0] || a.AlbumArtist || "").toLowerCase();
         const bA = (b.Artists?.[0] || b.AlbumArtist || "").toLowerCase();
-        let cmp = aA.localeCompare(bA, "tr") ||
-          (a.Album || "").localeCompare(b.Album || "", "tr") ||
+        let cmp = aA.localeCompare(bA) ||
+          (a.Album || "").localeCompare(b.Album || "") ||
           (a.IndexNumber || 0) - (b.IndexNumber || 0);
         return asc ? cmp : -cmp;
       });
@@ -231,7 +231,7 @@ function sortTracks(tracks, sortOption) {
         const yB = parseInt(b.ProductionYear || "0");
         let cmp = yB - yA;
         if (cmp === 0) {
-          cmp = (a.Album || "").localeCompare(b.Album || "", "tr") ||
+          cmp = (a.Album || "").localeCompare(b.Album || "") ||
             (a.IndexNumber || 0) - (b.IndexNumber || 0);
         }
         return asc ? cmp : -cmp;
@@ -1305,7 +1305,7 @@ function createTrackElement(track, index, showPosition = true) {
   trackDateAdded.className = "modal-track-date-added";
   if (track.DateCreated) {
     const date = new Date(track.DateCreated);
-    trackDateAdded.textContent = date.toLocaleString(config.dateLocale || "tr-TR", {
+    trackDateAdded.textContent = date.toLocaleString(config.dateLocale || "en-US", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -1905,7 +1905,7 @@ async function showSaveToPlaylistModal() {
   nameInput.setAttribute("aria-label", config.languageLabels.enterPlaylistName || "Oynatma listesi adı");
 
   const titleName = document.querySelector("#artist-modal .modal-artist-name")?.textContent || "";
-  nameInput.value = `${titleName} - ${new Date().toLocaleString(config.dateLocale || "tr-TR", {
+  nameInput.value = `${titleName} - ${new Date().toLocaleString(config.dateLocale || "en-US", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

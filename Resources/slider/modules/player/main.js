@@ -1305,7 +1305,7 @@ function createPlayerButton() {
     const btn = document.createElement("button");
     btn.id = "jellyfinPlayerToggle";
     btn.type = "button";
-    btn.setAttribute("aria-label", "GMMP Aç/Kapa");
+    btn.setAttribute("aria-label", "Toggle music player");
     btn.title = "GMMP";
     btn.innerHTML = faIconHtml("play", "gmmp");
     return btn;

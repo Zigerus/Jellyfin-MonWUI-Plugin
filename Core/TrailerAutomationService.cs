@@ -21,7 +21,7 @@ public sealed class TrailerAutomationService
     private const string DefaultIncludeTypes = "Movie,Series,Season,Episode";
     private const int DefaultPageSize = 200;
     private const double DefaultSleepSecs = 1.0;
-    private const string DefaultPreferredLang = "tr-TR";
+    private const string DefaultPreferredLang = "en-US";
     private const string DefaultFallbackLang = "en-US";
     private const int DefaultMaxConcurrentDownloads = 1;
     private const int MinConcurrentDownloads = 1;
@@ -30,7 +30,7 @@ public sealed class TrailerAutomationService
     private const int DefaultTrailerMaxResolution = 1080;
     private const int MinTrailerResolution = 640;
     private const int MaxTrailerResolution = 2160;
-    private const string DefaultIncludeLangsWide = "tr,en,hi,de,ru,fr,it,es,ar,fa,pt,zh,ja,ko,nl,pl,sv,cs,uk,el,null";
+    private const string DefaultIncludeLangsWide = "en,tr,hi,de,ru,fr,it,es,ar,fa,pt,zh,ja,ko,nl,pl,sv,cs,uk,el,null";
     private const string DefaultWorkDirName = "trailers-dl";
     private const string DefaultToolDirName = "jmsfusion-tools";
     private const long BetterMinSizeDelta = 1_048_576;
