@@ -117,6 +117,7 @@ public sealed class NativeTrailerSync
         var work = new List<BaseItem>();
         var skippedReadOnly = 0;
         var skippedRecent = 0;
+        var skippedOptOut = 0;
         foreach (var item in all)
         {
             if (string.IsNullOrWhiteSpace(item.Path) || IsExcludedPath(item.Path))
@@ -127,6 +128,12 @@ public sealed class NativeTrailerSync
             var folder = GetItemFolder(item);
             if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
             {
+                continue;
+            }
+
+            if (HasOptOutMarker(folder))
+            {
+                skippedOptOut++;
                 continue;
             }
 
@@ -158,6 +165,12 @@ public sealed class NativeTrailerSync
             + " itens na biblioteca, " + work.Count.ToString(CultureInfo.InvariantCulture)
             + (sample ? " elegiveis (amostra, com ou sem trailer)" : " sem trailer")
             + ", processando " + count.ToString(CultureInfo.InvariantCulture) + ". Biblioteca adulta fora.");
+
+        if (skippedOptOut > 0)
+        {
+            Log("Ignorados: " + skippedOptOut.ToString(CultureInfo.InvariantCulture) + " pastas com " + OptOutMarker
+                + " (opt-out manual: nenhum trailer baixado ali).");
+        }
 
         if (skippedReadOnly > 0 || skippedRecent > 0)
         {
@@ -751,6 +764,23 @@ public sealed class NativeTrailerSync
         }
 
         return item is Series ? item.Path : Path.GetDirectoryName(item.Path);
+    }
+
+    // Per-folder opt-out (fork 4.0.0.100): an empty file with this name in a movie/series folder means "never download a
+    // trailer here". For titles where every source returns the wrong video (a different film with the same name, or an
+    // untranslated cut). Dot-prefixed, so Jellyfin's library scan ignores it. Remove the file to opt back in.
+    public const string OptOutMarker = ".notrailer";
+
+    public static bool HasOptOutMarker(string folder)
+    {
+        try
+        {
+            return File.Exists(Path.Combine(folder, OptOutMarker));
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool HasFinishedTrailer(string folder)

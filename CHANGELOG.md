@@ -5,6 +5,11 @@ The upstream project by G-grbz was archived on 2026-08-19; this fork keeps it wo
 fixes bugs, closes a security hole and makes the home page lighter. License: GPL-3.0, credits to the
 original authors (G-grbz and contributors) are kept.
 
+## 4.0.0.100 (Zigerus build, Jellyfin 12)
+
+### Changes
+- **Per-folder trailer opt-out.** An empty file named `.notrailer` in a movie or series folder tells the trailer downloader never to fetch a trailer there. This applies to the scheduled sync, the new-title watcher, and the old script runner. Use it for titles where every source returns the wrong video (a different film with the same name, or a cut with no translation). Jellyfin's library scan ignores dot-files, and deleting the file opts the folder back in. Each sync run logs how many folders it skipped this way.
+
 ## 4.0.0.99 (Zigerus build, Jellyfin 12)
 
 ### Changes

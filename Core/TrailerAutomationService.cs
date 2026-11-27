@@ -629,6 +629,12 @@ public sealed class TrailerAutomationService
             return DownloadOutcome.Skip;
         }
 
+        if (NativeTrailerSync.HasOptOutMarker(dir))
+        {
+            ctx.Log.Out($"[SKIP] {NativeTrailerSync.OptOutMarker} in folder (manual opt-out): {dir}  ->  {name} ({year})");
+            return DownloadOutcome.Skip;
+        }
+
         if (!CheckDirectoryWritable(dir))
         {
             ctx.Log.Out($"[ATLA] Yazılamayan klasör, atlanıyor: {dir}  ->  {name} ({year})");
