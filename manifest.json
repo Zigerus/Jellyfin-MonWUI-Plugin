@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Zigerus/Jellyfin-MonWUI-Plugin/main/img/icon.png",
     "versions": [
       {
+        "version": "4.0.0.100",
+        "changelog": "### Changes\n- **Per-folder trailer opt-out.** An empty file named `.notrailer` in a movie or series folder tells the trailer downloader never to fetch a trailer there. This applies to the scheduled sync, the new-title watcher, and the old script runner. Use it for titles where every source returns the wrong video (a different film with the same name, or a cut with no translation). Jellyfin's library scan ignores dot-files, and deleting the file opts the folder back in. Each sync run logs how many folders it skipped this way.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Zigerus/Jellyfin-MonWUI-Plugin/releases/download/v4.0.0.100/JMSFusion_4.0.0.100_12.0.0.zip",
+        "checksum": "6679BF45C0E2FBDC5D39BD4CE6F64C4F",
+        "timestamp": "2026-11-27T05:00:05"
+      },
+      {
         "version": "4.0.0.99",
         "changelog": "### Changes\n- **Foreign-language films and shows: English-subtitled trailers before untranslated ones.** When a title's original language is not English, the downloader now tries, in order:\n  1. TMDb trailers listed under English. For foreign titles these are usually the dubbed or subtitled cuts; a **dubbed** cut now ranks above a **subtitled** one, which ranks above the rest.\n  2. IMDb.\n  3. A YouTube search for an English-subtitled or English-dubbed upload (the video title must name the show or film and say English / subtitled / subbed / dubbed).\n  4. The generic YouTube English search.\n  5. **Last resort:** the official TMDb trailer in the original language, without subtitles.\n\n  Before, a foreign title with no English trailer got nothing, or whatever the English search turned up first. Subtitles are not burned in: original-language trailers on YouTube almost never carry an English caption track.\n- The \"dubbed / subtitled\" ranking of TMDb trailers is language-neutral (it used to match only the Portuguese words).",
         "targetAbi": "12.0.0.0",
